@@ -106,6 +106,7 @@ CREATE TABLE IF NOT EXISTS purchases (
   date TEXT NOT NULL,
   supplier_id INTEGER REFERENCES suppliers(id),
   category TEXT NOT NULL CHECK (category IN ('raw_stone','fuel','spare_parts','electricity','maintenance','transport','other')),
+  product_id INTEGER REFERENCES products(id),
   description TEXT,
   qty REAL,
   unit TEXT,

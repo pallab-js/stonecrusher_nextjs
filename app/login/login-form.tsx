@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { loginAction, type FormState } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Delete, Loader2 } from "lucide-react";
@@ -14,7 +14,7 @@ interface UserLite {
 }
 
 const ROLE_LABEL: Record<string, string> = {
-  admin: "Administrator",
+  admin: "Admin",
   operator: "Operator",
   accountant: "Accounts",
 };
@@ -24,19 +24,19 @@ export function LoginForm({ users }: { users: UserLite[] }) {
     users.length === 1 ? users[0] : null
   );
   const [pin, setPin] = useState("");
-  const [state, formAction, pending] = useActionState<FormState, FormData>(
-    loginAction,
-    null
-  );
   const formRef = useRef<HTMLFormElement>(null);
 
-  useEffect(() => {
-    if (state?.error) {
-      toast.error(state.error);
+  const wrappedAction = async (_prev: FormState, formData: FormData): Promise<FormState> => {
+    const result = await loginAction(_prev, formData);
+    if (result?.error) {
+      toast.error(result.error);
       setPin("");
       formRef.current?.querySelector<HTMLInputElement>('input[name="pin"]')?.focus();
     }
-  }, [state]);
+    return result;
+  };
+
+  const [, formAction, pending] = useActionState<FormState, FormData>(wrappedAction, null);
 
   if (!selected) {
     return (

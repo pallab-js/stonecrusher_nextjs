@@ -9,10 +9,24 @@ const DB_PATH = path.join(DB_DIR, "stonecrusher.db");
 
 const globalForDb = globalThis as unknown as { __stoneDb?: Database.Database };
 
+function ensureColumns(db: Database.Database) {
+  const attempts = [
+    "ALTER TABLE purchases ADD COLUMN product_id INTEGER REFERENCES products(id)",
+  ];
+  for (const sql of attempts) {
+    try {
+      db.exec(sql);
+    } catch {
+      /* column already exists */
+    }
+  }
+}
+
 function bootstrap(db: Database.Database) {
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   db.exec(SCHEMA);
+  ensureColumns(db);
 
   const insertSetting = db.prepare(
     "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING"
