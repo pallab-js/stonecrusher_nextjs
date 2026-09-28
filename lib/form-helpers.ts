@@ -3,9 +3,10 @@ export function s(fd: FormData, key: string): string {
   return v == null ? "" : String(v).trim();
 }
 
-export function opt(fd: FormData, key: string): string | null {
+/** Empty form values become `undefined` so `.optional()` zod fields accept them. */
+export function opt(fd: FormData, key: string): string | undefined {
   const v = s(fd, key);
-  return v === "" ? null : v;
+  return v === "" ? undefined : v;
 }
 
 export function n(fd: FormData, key: string): number {

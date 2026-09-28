@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -102,14 +103,16 @@ function UserChip({ user }: { user: SessionUser }) {
         </span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="text-xs text-muted-foreground">
-          @{user.username} · {ROLE_BADGE[user.role] ?? user.role}
-        </DropdownMenuLabel>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="text-xs text-muted-foreground">
+            @{user.username} · {ROLE_BADGE[user.role] ?? user.role}
+          </DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => router.push("/settings")}>
+        <DropdownMenuItem onClick={() => router.push("/settings")}>
           <Pin className="size-4" /> Change PIN
         </DropdownMenuItem>
-        <DropdownMenuItem variant="destructive" onSelect={() => void logoutAction()}>
+        <DropdownMenuItem variant="destructive" onClick={() => void logoutAction()}>
           <LogOut className="size-4" /> Lock screen
         </DropdownMenuItem>
       </DropdownMenuContent>

@@ -107,6 +107,7 @@ export function CustomersTable({ rows }: { rows: CustomerRow[] }) {
                         variant="ghost"
                         size="icon"
                         className="size-8 text-muted-foreground hover:text-white"
+                        aria-label={`Edit ${r.name}`}
                         onClick={() => {
                           setEditing(r);
                           setOpen(true);
@@ -122,7 +123,10 @@ export function CustomersTable({ rows }: { rows: CustomerRow[] }) {
                             : `This removes ${r.name} permanently.`
                         }
                         trigger={
-                          <span className="flex size-8 items-center justify-center rounded-md text-destructive hover:bg-destructive/15">
+                          <span
+                            aria-label={`Delete ${r.name}`}
+                            className="flex size-8 items-center justify-center rounded-md text-destructive hover:bg-destructive/15"
+                          >
                             <Trash2 className="size-3.5" />
                           </span>
                         }

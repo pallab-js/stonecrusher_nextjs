@@ -23,15 +23,20 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: "*" },
-  { href: "/production", label: "Production", icon: Factory, roles: "*" },
-  { href: "/inventory", label: "Inventory", icon: Boxes, roles: "*" },
-  { href: "/sales", label: "Sales & Dispatch", icon: ReceiptText, roles: "*" },
-  { href: "/purchases", label: "Purchases", icon: ShoppingCart, roles: "*" },
-  { href: "/expenses", label: "Expenses", icon: Wallet, roles: "*" },
-  { href: "/customers", label: "Customers", icon: Users, roles: "*" },
-  { href: "/suppliers", label: "Suppliers", icon: Truck, roles: "*" },
-  { href: "/maps", label: "Maps", icon: MapPinned, roles: "*" },
-  { href: "/reports", label: "Reports", icon: ChartNoAxesCombined, roles: "*" },
+  { href: "/production", label: "Production", icon: Factory, roles: ["admin", "operator"] },
+  { href: "/inventory", label: "Inventory", icon: Boxes, roles: ["admin", "operator"] },
+  { href: "/sales", label: "Sales & Dispatch", icon: ReceiptText, roles: ["admin", "accountant"] },
+  { href: "/purchases", label: "Purchases", icon: ShoppingCart, roles: ["admin", "accountant"] },
+  { href: "/expenses", label: "Expenses", icon: Wallet, roles: ["admin", "accountant"] },
+  { href: "/customers", label: "Customers", icon: Users, roles: ["admin", "accountant"] },
+  { href: "/suppliers", label: "Suppliers", icon: Truck, roles: ["admin", "accountant"] },
+  { href: "/maps", label: "Maps", icon: MapPinned, roles: ["admin", "operator"] },
+  {
+    href: "/reports",
+    label: "Reports",
+    icon: ChartNoAxesCombined,
+    roles: ["admin", "operator", "accountant"],
+  },
   { href: "/settings", label: "Settings", icon: Settings, roles: ["admin"] },
 ];
 

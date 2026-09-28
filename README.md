@@ -26,7 +26,23 @@ npm run lint       # eslint
 npm run typecheck  # tsc --noEmit
 npm run build      # production build
 npm run start      # serve the production build
+npm run test:e2e   # Playwright end-to-end tests (starts its own dev server)
 ```
+
+## Tests
+
+Playwright drives the real app in Chromium against an isolated database
+(`STONEOPS_DATA_DIR=data/e2e`, wiped before every run):
+
+```bash
+npx playwright install chromium   # first run only
+npm run test:e2e
+```
+
+Coverage: PIN login / wrong PIN / lock screen, role gating per role,
+customer CRUD + validation, demo seed → dashboard charts → reports → maps,
+and data clearing. Every push to `main` runs lint, typecheck, build and the
+e2e suite via `.github/workflows/ci.yml`.
 
 ## Signing in
 

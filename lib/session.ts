@@ -4,10 +4,12 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import type { Role, SessionUser } from "@/lib/auth";
 
+import { dataDir } from "@/lib/paths";
+
 export const SESSION_COOKIE = "stoneops_session";
 const SESSION_DAYS = 7;
 
-const SECRET_FILE = path.join(process.cwd(), "data", "session-secret");
+const SECRET_FILE = path.join(dataDir(), "session-secret");
 
 function getSecret(): Uint8Array {
   try {

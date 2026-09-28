@@ -3,8 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { SCHEMA, DEFAULT_SETTINGS } from "@/lib/schema";
 import { hashPin } from "@/lib/auth";
+import { dataDir } from "@/lib/paths";
 
-const DB_DIR = path.join(process.cwd(), "data");
+const DB_DIR = dataDir();
 const DB_PATH = path.join(DB_DIR, "stonecrusher.db");
 
 const globalForDb = globalThis as unknown as { __stoneDb?: Database.Database };
