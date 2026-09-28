@@ -64,3 +64,7 @@ Sign in by picking a user on the login screen and entering their 4-digit PIN. Us
 - `lib/auth.ts` + `lib/session.ts` + `proxy.ts` route gating per role
 - `components/modules/*` page bodies; `components/shared/*` dialog/table/form primitives
 - Design tokens and the full UI kit live in `app/globals.css` (spec: `DESIGN.md`)
+
+## License
+
+[MIT](LICENSE)
