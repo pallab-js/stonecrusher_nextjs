@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { DateField, NumberField, SelectField, TextAreaField, TextField } from "@/components/shared/fields";
 import { fmtDate, humanize, inr, today } from "@/lib/format";
 import { Pencil, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const CATEGORY_OPTIONS = [
   { value: "payroll", label: "Payroll" },
@@ -37,6 +38,7 @@ const MODE_LABELS: Record<string, string> = {
 
 export function ExpensesTable({ rows }: { rows: ExpenseRow[] }) {
   const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("all");
   const [editing, setEditing] = useState<ExpenseRow | null>(null);
   const [open, setOpen] = useState(false);
 
@@ -46,14 +48,20 @@ export function ExpensesTable({ rows }: { rows: ExpenseRow[] }) {
     .filter((r) => r.date.startsWith(month))
     .reduce((sum, r) => sum + r.amount, 0);
 
+  const categoryTotals = CATEGORY_OPTIONS.map((c) => ({
+    ...c,
+    total: rows.filter((r) => r.category === c.value).reduce((sum, r) => sum + r.amount, 0),
+  }));
+  const grandTotal = rows.reduce((sum, r) => sum + r.amount, 0);
+
   const filtered = rows.filter((r) => {
     const q = query.toLowerCase();
-    return (
+    const matchesQuery =
       !q ||
       r.category.toLowerCase().includes(q) ||
       (r.payee ?? "").toLowerCase().includes(q) ||
-      (r.notes ?? "").toLowerCase().includes(q)
-    );
+      (r.notes ?? "").toLowerCase().includes(q);
+    return matchesQuery && (category === "all" || r.category === category);
   });
 
   return (
@@ -66,6 +74,12 @@ export function ExpensesTable({ rows }: { rows: ExpenseRow[] }) {
               This month
             </span>
             <span className="text-sm font-semibold text-white">{inr(monthTotal)}</span>
+          </div>
+          <div className="rounded-lg bg-surface px-3 py-1.5 ring-1 ring-white/10">
+            <span className="block text-[10px] tracking-widest text-muted-foreground uppercase">
+              All time
+            </span>
+            <span className="text-sm font-semibold text-white">{inr(grandTotal)}</span>
           </div>
         </div>
         <EntityDialog
@@ -101,6 +115,36 @@ export function ExpensesTable({ rows }: { rows: ExpenseRow[] }) {
           </div>
           <TextAreaField label="Notes" name="notes" defaultValue={editing?.notes ?? ""} />
         </EntityDialog>
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setCategory("all")}
+          className={cn(
+            "rounded-pill px-3 py-1.5 text-xs font-semibold ring-1 transition",
+            category === "all"
+              ? "bg-blurple text-white ring-blurple"
+              : "bg-surface text-muted-foreground ring-white/10 hover:text-white"
+          )}
+        >
+          All · {inr(grandTotal)}
+        </button>
+        {categoryTotals.map((c) => (
+          <button
+            key={c.value}
+            type="button"
+            onClick={() => setCategory(c.value)}
+            className={cn(
+              "rounded-pill px-3 py-1.5 text-xs font-semibold ring-1 transition",
+              category === c.value
+                ? "bg-blurple text-white ring-blurple"
+                : "bg-surface text-muted-foreground ring-white/10 hover:text-white"
+            )}
+          >
+            {c.label} · {inr(c.total)}
+          </button>
+        ))}
       </div>
 
       {filtered.length === 0 ? (

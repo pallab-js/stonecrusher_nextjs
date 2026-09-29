@@ -109,3 +109,15 @@ export function amountInWords(amount: number): string {
   const paisePart = paise ? `${under1000(paise)} Paise` : "";
   return `${[rupeePart, paisePart].filter(Boolean).join(" and ")} Only`;
 }
+
+/** Attach a running balance to ledger/statement rows. */
+export function withRunningBalance<T extends { debit: number; credit: number }>(
+  opening: number,
+  rows: T[]
+): (T & { balance: number })[] {
+  let balance = opening;
+  return rows.map((r) => {
+    balance = Math.round((balance + r.debit - r.credit) * 100) / 100;
+    return { ...r, balance };
+  });
+}

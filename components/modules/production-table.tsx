@@ -54,9 +54,20 @@ export function ProductionTable({ rows, products }: { rows: ProductionRow[]; pro
 
   const now = new Date();
   const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const monthTotal = rows
-    .filter((r) => r.date.startsWith(month))
-    .reduce((sum, r) => sum + r.total_output, 0);
+  const monthRows = rows.filter((r) => r.date.startsWith(month));
+  const monthTotal = monthRows.reduce((sum, r) => sum + r.total_output, 0);
+  const monthRaw = monthRows.reduce((sum, r) => sum + r.raw_consumed, 0);
+
+  const split = new Map<number, { name: string; qty: number }>();
+  for (const row of monthRows) {
+    for (const out of row.outputs) {
+      const entry = split.get(out.product_id) ?? { name: out.name, qty: 0 };
+      entry.qty += out.qty;
+      split.set(out.product_id, entry);
+    }
+  }
+  const productSplit = [...split.values()].sort((a, b) => b.qty - a.qty);
+  const yieldPct = monthRaw > 0 ? Math.round((monthTotal / monthRaw) * 100) : 0;
 
   const filtered = rows.filter((r) => {
     const q = query.toLowerCase();
@@ -70,11 +81,16 @@ export function ProductionTable({ rows, products }: { rows: ProductionRow[]; pro
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <SearchBox value={query} onChange={setQuery} placeholder="Search date, line, notes…" />
           <div className="rounded-lg bg-surface px-3 py-1.5 ring-1 ring-white/10">
             <span className="text-sm font-semibold text-white">This month: {tonnes(monthTotal)}</span>
+          </div>
+          <div className="rounded-lg bg-surface px-3 py-1.5 ring-1 ring-white/10">
+            <span className="text-sm font-semibold text-white">
+              Raw {tonnes(monthRaw)} · yield {yieldPct}%
+            </span>
           </div>
         </div>
         <EntityDialog
@@ -93,6 +109,22 @@ export function ProductionTable({ rows, products }: { rows: ProductionRow[]; pro
           <ShiftFields editing={editing} products={products} />
         </EntityDialog>
       </div>
+
+      {productSplit.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
+            Product-wise this month
+          </span>
+          {productSplit.map((p) => (
+            <span
+              key={p.name}
+              className="rounded-pill bg-surface px-2.5 py-1 text-xs font-semibold text-white ring-1 ring-white/10"
+            >
+              {p.name} <span className="text-muted-foreground">·</span> {tonnes(p.qty)}
+            </span>
+          ))}
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         <EmptyState

@@ -6,6 +6,8 @@ import {
   savePurchase,
   saveSale,
 } from "@/lib/repo/operations";
+import { nextOrderNo, recomputeOrderStatus, saveOrder } from "@/lib/repo/orders";
+import { nextGrnNo, saveGrn } from "@/lib/repo/grns";
 
 /* deterministic PRNG so demo data is stable across loads */
 function mulberry32(seed: number) {
@@ -74,6 +76,8 @@ export interface SeedResult {
   payments: number;
   purchases: number;
   expenses: number;
+  orders: number;
+  grns: number;
 }
 
 export function loadDemoData(): SeedResult {
@@ -89,6 +93,10 @@ export function loadDemoData(): SeedResult {
       "production_output",
       "production",
       "purchases",
+      "grn_items",
+      "grns",
+      "order_items",
+      "orders",
       "expenses",
       "products",
       "customers",
@@ -144,6 +152,10 @@ export function loadDemoData(): SeedResult {
     let purchaseCount = 0;
     let expenseCount = 0;
     let invoiceSeq = 1;
+    let grnSeq = 1;
+    let grnCount = 0;
+    let orderCount = 0;
+    let orderSeq = 1;
 
     const rawStoneIds = [productId.get("ROM")!];
     const quarryIds = suppliersByCat("raw_stone");
@@ -181,10 +193,25 @@ export function loadDemoData(): SeedResult {
         productionCount++;
       }
 
-      /* raw stone purchase three times a week */
+      /* raw stone arrives on a GRN, then the quarry bill is raised against it */
       if (dow === 1 || dow === 3 || dow === 5) {
         const qty = Math.round((480 + rnd() * 600) * 10) / 10;
+        const grnNo = nextGrnNo("GRN", grnSeq++);
+        const grnId = saveGrn(
+          null,
+          {
+            date,
+            supplier_id: quarryIds[Math.floor(rnd() * quarryIds.length)] ?? null,
+            vehicle_no: `${VEHICLE_PREFIXES[Math.floor(rnd() * VEHICLE_PREFIXES.length)]}-${String(
+              10 + Math.floor(rnd() * 89)
+            )}${Math.floor(rnd() * 10)}-QR${Math.floor(rnd() * 90 + 10)}`,
+            challan_no: `CH-${1000 + Math.floor(rnd() * 8999)}`,
+            items: [{ product_id: rawStoneIds[0], qty, rate: 18 }],
+          },
+          grnNo
+        );
         savePurchase(null, {
+          bill_no: `QB-${1000 + Math.floor(rnd() * 8999)}`,
           date,
           supplier_id: quarryIds[Math.floor(rnd() * quarryIds.length)] ?? null,
           category: "raw_stone",
@@ -195,8 +222,29 @@ export function loadDemoData(): SeedResult {
           amount: Math.round(qty * 18),
           paid_amount: rnd() > 0.4 ? Math.round(qty * 18) : Math.round(qty * 18 * rnd()),
           description: "ROM boulders from quarry",
+          grn_id: grnId,
         });
         purchaseCount++;
+        grnCount++;
+      }
+
+      /* a couple of fresh deliveries still awaiting their bill */
+      if (d.getTime() > end.getTime() - 4 * 86400000 && rnd() > 0.4) {
+        const qty = Math.round((320 + rnd() * 260) * 10) / 10;
+        saveGrn(
+          null,
+          {
+            date,
+            supplier_id: quarryIds[Math.floor(rnd() * quarryIds.length)] ?? null,
+            vehicle_no: `${VEHICLE_PREFIXES[Math.floor(rnd() * VEHICLE_PREFIXES.length)]}-${String(
+              10 + Math.floor(rnd() * 89)
+            )}${Math.floor(rnd() * 10)}-QR${Math.floor(rnd() * 90 + 10)}`,
+            challan_no: `CH-${1000 + Math.floor(rnd() * 8999)}`,
+            items: [{ product_id: rawStoneIds[0], qty, rate: 18 }],
+          },
+          nextGrnNo("GRN", grnSeq++)
+        );
+        grnCount++;
       }
 
       /* monthly-ish bills */
@@ -344,6 +392,72 @@ export function loadDemoData(): SeedResult {
       }
     }
 
+    /* customer orders (LPO): some billed against real invoices, some still open */
+    const linkedSales = db
+      .prepare(
+        `SELECT id, date, customer_id FROM sales
+         WHERE id % 47 = 5 ORDER BY date LIMIT 14`
+      )
+      .all() as { id: number; date: string; customer_id: number | null }[];
+
+    for (const sale of linkedSales) {
+      const saleItems = db
+        .prepare("SELECT product_id, qty, rate FROM sale_items WHERE sale_id = ?")
+        .all(sale.id) as { product_id: number; qty: number; rate: number }[];
+      if (saleItems.length === 0) continue;
+      const stretch = orderSeq % 3 === 0 ? 1 : 1.4 + rnd() * 0.6;
+      const orderId = saveOrder(
+        null,
+        {
+          date: sale.date,
+          customer_id: sale.customer_id,
+          delivery_date: sale.date,
+          items: saleItems.map((i) => ({
+            product_id: i.product_id,
+            qty: Math.round(i.qty * stretch * 10) / 10,
+            rate: i.rate,
+          })),
+          notes: stretch === 1 ? "Delivered in full" : "Balance still to be dispatched",
+        },
+        nextOrderNo("LPO", orderSeq++)
+      );
+      db.prepare("UPDATE sales SET order_id = ? WHERE id = ?").run(orderId, sale.id);
+      recomputeOrderStatus(orderId);
+      orderCount++;
+    }
+
+    /* forward orders nobody has billed yet */
+    for (let k = 0; k < 7; k++) {
+      const orderDate = new Date();
+      orderDate.setDate(orderDate.getDate() - Math.floor(rnd() * 9));
+      const delivery = new Date(orderDate);
+      delivery.setDate(delivery.getDate() + 3 + Math.floor(rnd() * 14));
+      const itemCount = 1 + Math.floor(rnd() * 2);
+      const items: { product_id: number; qty: number; rate: number }[] = [];
+      for (let i = 0; i < itemCount; i++) {
+        const pick = aggregateIds[Math.floor(rnd() * aggregateIds.length)];
+        if (items.some((it) => it.product_id === pick.id)) continue;
+        items.push({
+          product_id: pick.id,
+          qty: Math.round((80 + rnd() * 240) * 10) / 10,
+          rate: pick.rate + Math.round(rnd() * 5 - 2),
+        });
+      }
+      if (items.length === 0) continue;
+      saveOrder(
+        null,
+        {
+          date: iso(orderDate),
+          customer_id: customerIds[Math.floor(rnd() * customerIds.length)],
+          delivery_date: iso(delivery),
+          items,
+          notes: "Awaiting dispatch",
+        },
+        nextOrderNo("LPO", orderSeq++)
+      );
+      orderCount++;
+    }
+
     for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
       if (key === "next_invoice_no") continue;
       db.prepare(
@@ -353,6 +467,12 @@ export function loadDemoData(): SeedResult {
     db.prepare(
       "INSERT INTO settings (key, value) VALUES ('next_invoice_no', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
     ).run(String(invoiceSeq));
+    db.prepare(
+      "INSERT INTO settings (key, value) VALUES ('next_grn_no', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+    ).run(String(grnSeq));
+    db.prepare(
+      "INSERT INTO settings (key, value) VALUES ('next_order_no', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+    ).run(String(orderSeq));
 
     return {
       products: PRODUCTS.length,
@@ -363,6 +483,8 @@ export function loadDemoData(): SeedResult {
       payments: paymentCount,
       purchases: purchaseCount,
       expenses: expenseCount,
+      orders: orderCount,
+      grns: grnCount,
     };
   });
 
@@ -380,6 +502,10 @@ export function clearAllData(): void {
       "production_output",
       "production",
       "purchases",
+      "grn_items",
+      "grns",
+      "order_items",
+      "orders",
       "expenses",
       "products",
       "customers",

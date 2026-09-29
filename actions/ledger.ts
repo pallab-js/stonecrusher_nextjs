@@ -30,6 +30,7 @@ const purchaseSchema = z.object({
   rate: z.number().nullable(),
   amount: z.number().min(0, "Amount is required"),
   paid_amount: z.number().min(0),
+  grn_id: z.number().nullable(),
   notes: z.string().optional(),
 });
 
@@ -51,6 +52,7 @@ export async function savePurchaseAction(
     rate: optN(formData, "rate"),
     amount: n(formData, "amount"),
     paid_amount: n(formData, "paid_amount"),
+    grn_id: optN(formData, "grn_id"),
     notes: opt(formData, "notes") ?? undefined,
   });
   if (!parsed.success) return err(parsed.error.issues[0]?.message ?? "Invalid input");
@@ -63,9 +65,18 @@ export async function savePurchaseAction(
   savePurchase(id, parsed.data);
   revalidatePath("/purchases");
   revalidatePath("/inventory");
+  revalidatePath("/suppliers");
   revalidatePath("/dashboard");
   revalidatePath("/reports");
-  return ok(id == null ? "Purchase recorded" : "Purchase updated");
+
+  let message = id == null ? "Purchase recorded" : "Purchase updated";
+  if (parsed.data.grn_id) {
+    message = id == null ? "Bill recorded against the goods receipt" : "Bill updated";
+  } else if (parsed.data.category === "raw_stone" && (parsed.data.qty ?? 0) > 0) {
+    const tons = Math.round((parsed.data.qty ?? 0) * 100) / 100;
+    message = id == null ? `Purchase recorded — ${tons} t added to stock` : `Purchase updated — stock adjusted to ${tons} t`;
+  }
+  return ok(message);
 }
 
 export async function deletePurchaseAction(formData: FormData): Promise<void> {
@@ -75,6 +86,7 @@ export async function deletePurchaseAction(formData: FormData): Promise<void> {
   deletePurchase(id);
   revalidatePath("/purchases");
   revalidatePath("/inventory");
+  revalidatePath("/suppliers");
   revalidatePath("/dashboard");
   revalidatePath("/reports");
 }

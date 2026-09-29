@@ -5,7 +5,10 @@ import { Plus, Printer, ReceiptText, Trash2, Pencil, IndianRupee } from "lucide-
 import Link from "next/link";
 import type { ProductRow, CustomerRow } from "@/lib/repo/masters";
 import type { PaymentRow, SaleRow } from "@/lib/repo/operations";
+import type { OrderRow } from "@/lib/repo/orders";
 import { saveSaleAction, deleteSaleAction } from "@/actions/sales";
+import { OrdersTable } from "@/components/modules/orders-table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { EntityDialog } from "@/components/shared/entity-dialog";
@@ -13,7 +16,7 @@ import { ConfirmButton } from "@/components/shared/confirm-button";
 import { SearchBox } from "@/components/shared/search-box";
 import { EmptyState } from "@/components/shared/empty-state";
 import { DateField, NumberField, SelectField, TextAreaField, TextField } from "@/components/shared/fields";
-import { fmtDate, inr, today, tonnes } from "@/lib/format";
+import { fmtDate, inr, qty, today, tonnes } from "@/lib/format";
 import { PaymentDialog } from "@/components/modules/payment-dialog";
 import { cn } from "@/lib/utils";
 
@@ -37,17 +40,21 @@ export function SalesTable({
   products,
   customers,
   payments,
+  orders,
 }: {
   rows: SaleRow[];
   products: ProductRow[];
   customers: CustomerRow[];
   payments: PaymentRow[];
+  orders: OrderRow[];
 }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [editing, setEditing] = useState<SaleRow | null>(null);
   const [open, setOpen] = useState(false);
   const [paying, setPaying] = useState<SaleRow | null>(null);
+  const [prefillOrder, setPrefillOrder] = useState<OrderRow | null>(null);
+  const [tab, setTab] = useState("invoices");
 
   const filtered = rows.filter((r) => {
     const q = query.toLowerCase();
@@ -60,7 +67,7 @@ export function SalesTable({
     return matchesQuery && matchesStatus;
   });
 
-  return (
+  const invoicesPanel = (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -83,19 +90,28 @@ export function SalesTable({
         </div>
 
         <EntityDialog
-          key={editing?.id ?? "new"}
-          title={editing ? `Invoice ${editing.invoice_no}` : "New Invoice"}
+          key={editing?.id ?? prefillOrder?.id ?? "new"}
+          title={editing ? `Invoice ${editing.invoice_no}` : prefillOrder ? `Invoice for ${prefillOrder.order_no}` : "New Invoice"}
           description="Line items are dispatched from stock automatically"
           open={open}
           onOpenChange={(o) => {
-            if (o) setEditing(null);
+            if (o) {
+              setEditing(null);
+              setPrefillOrder(null);
+            }
             setOpen(o);
           }}
           action={saveSaleAction}
           submitLabel={editing ? "Update invoice" : "Create invoice"}
           triggerLabel="New Invoice"
         >
-          <InvoiceFields editing={editing} products={products} customers={customers} />
+          <InvoiceFields
+            editing={editing}
+            prefill={editing ? null : prefillOrder}
+            products={products}
+            customers={customers}
+            orders={orders}
+          />
         </EntityDialog>
       </div>
 
@@ -193,6 +209,33 @@ export function SalesTable({
           </Table>
         </div>
       )}
+    </>
+  );
+
+  return (
+    <>
+      <Tabs value={tab} onValueChange={(v) => setTab(String(v))} className="gap-4">
+        <TabsList>
+          <TabsTrigger value="invoices">Invoices</TabsTrigger>
+          <TabsTrigger value="orders">Orders (LPO)</TabsTrigger>
+        </TabsList>
+        <TabsContent value="invoices" className="mt-4">
+          {invoicesPanel}
+        </TabsContent>
+        <TabsContent value="orders" className="mt-4">
+          <OrdersTable
+            rows={orders}
+            customers={customers}
+            products={products}
+            onInvoice={(order) => {
+              setEditing(null);
+              setPrefillOrder(order);
+              setOpen(true);
+              setTab("invoices");
+            }}
+          />
+        </TabsContent>
+      </Tabs>
 
       <PaymentDialog
         sale={paying}
@@ -208,13 +251,27 @@ export function SalesTable({
 
 function InvoiceFields({
   editing,
+  prefill,
   products,
   customers,
+  orders,
 }: {
   editing: SaleRow | null;
+  prefill: OrderRow | null;
   products: ProductRow[];
   customers: CustomerRow[];
+  orders: OrderRow[];
 }) {
+  const orderLines = (order: OrderRow) =>
+    order.items
+      .filter((i) => i.balance > 0.01)
+      .map((i) => ({
+        key: keyCounter++,
+        product_id: String(i.product_id),
+        qty: String(i.balance),
+        rate: String(i.rate),
+      }));
+
   const [items, setItems] = useState<ItemDraft[]>(
     editing
       ? editing.items.map((i) => ({
@@ -223,11 +280,29 @@ function InvoiceFields({
           qty: String(i.qty),
           rate: String(i.rate),
         }))
-      : [{ key: keyCounter++, product_id: "", qty: "", rate: "" }]
+      : prefill && prefill.items.some((i) => i.balance > 0.01)
+        ? orderLines(prefill)
+        : [{ key: keyCounter++, product_id: "", qty: "", rate: "" }]
+  );
+  const [orderId, setOrderId] = useState(prefill ? String(prefill.id) : "");
+  const [customerId, setCustomerId] = useState(
+    editing?.customer_id != null
+      ? String(editing.customer_id)
+      : prefill?.customer_id != null
+        ? String(prefill.customer_id)
+        : undefined
   );
   const [discount, setDiscount] = useState(editing ? String(editing.discount) : "0");
   const [tax, setTax] = useState(editing ? String(editing.tax) : "0");
   const [paid, setPaid] = useState(editing ? String(editing.paid_amount) : "0");
+
+  const billableOrders = orders.filter(
+    (o) =>
+      o.status !== "cancelled" &&
+      o.status !== "closed" &&
+      o.items.some((i) => i.balance > 0.01) &&
+      (customerId == null || String(o.customer_id) === customerId)
+  );
 
   const totals = useMemo(() => {
     const subtotal = items.reduce((s, i) => s + (Number(i.qty) || 0) * (Number(i.rate) || 0), 0);
@@ -243,14 +318,47 @@ function InvoiceFields({
   return (
     <>
       <input type="hidden" name="id" value={editing?.id ?? ""} />
+      <input type="hidden" name="order_id" value={orderId} />
       <div className="grid gap-4 sm:grid-cols-2">
         <SelectField
+          key={`customer-${customerId ?? "none"}-${editing?.id ?? prefill?.id ?? "new"}`}
           label="Customer"
           name="customer_id"
-          value={editing?.customer_id != null ? String(editing.customer_id) : undefined}
+          value={customerId}
           options={customers.map((c) => ({ value: String(c.id), label: c.name }))}
           placeholder="Select customer…"
+          onChange={(v) => {
+            setCustomerId(v);
+            if (orderId) {
+              const order = orders.find((o) => String(o.id) === orderId);
+              if (order && String(order.customer_id) !== v) setOrderId("");
+            }
+          }}
         />
+        {!editing && (
+          <SelectField
+            key={`order-${orderId || "none"}`}
+            label="Against LPO"
+            name="order_ref"
+            value={orderId || undefined}
+            options={billableOrders.map((o) => ({
+              value: String(o.id),
+              label: `${o.order_no} · ${o.customer_name ?? ""} (${qty(
+                o.items.reduce((sum, i) => sum + i.balance, 0)
+              )} t left)`,
+            }))}
+            placeholder="No LPO (walk-in invoice)"
+            onChange={(v) => {
+              const order = orders.find((o) => String(o.id) === v);
+              setOrderId(order ? String(order.id) : "");
+              if (order) {
+                setCustomerId(order.customer_id != null ? String(order.customer_id) : undefined);
+                const lines = orderLines(order);
+                if (lines.length > 0) setItems(lines);
+              }
+            }}
+          />
+        )}
         <DateField label="Invoice date" name="date" defaultValue={editing?.date ?? today()} required />
         <TextField label="Vehicle no." name="vehicle_no" defaultValue={editing?.vehicle_no ?? ""} placeholder="AS-01-XY-1234" />
         <TextField label="Transporter" name="transporter" defaultValue={editing?.transporter ?? ""} placeholder="Own fleet / hired" />

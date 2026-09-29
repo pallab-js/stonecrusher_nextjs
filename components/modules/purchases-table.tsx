@@ -4,7 +4,10 @@ import { useState } from "react";
 import { Pencil, ShoppingCart, Trash2 } from "lucide-react";
 import type { SupplierRow, ProductRow } from "@/lib/repo/masters";
 import type { PurchaseRow } from "@/lib/repo/operations";
+import type { GrnRow } from "@/lib/repo/grns";
 import { savePurchaseAction, deletePurchaseAction } from "@/actions/ledger";
+import { GrnTable } from "@/components/modules/grn-table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { EntityDialog } from "@/components/shared/entity-dialog";
@@ -12,7 +15,7 @@ import { ConfirmButton } from "@/components/shared/confirm-button";
 import { SearchBox } from "@/components/shared/search-box";
 import { EmptyState } from "@/components/shared/empty-state";
 import { DateField, NumberField, SelectField, TextAreaField, TextField } from "@/components/shared/fields";
-import { daysAgo, fmtDate, humanize, inr, today } from "@/lib/format";
+import { daysAgo, fmtDate, humanize, inr, qty, today } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const CATEGORIES = [
@@ -35,14 +38,18 @@ export function PurchasesTable({
   rows,
   suppliers,
   products,
+  grns,
 }: {
   rows: PurchaseRow[];
   suppliers: SupplierRow[];
   products: ProductRow[];
+  grns: GrnRow[];
 }) {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<PurchaseRow | null>(null);
   const [open, setOpen] = useState(false);
+  const [billFrom, setBillFrom] = useState<GrnRow | null>(null);
+  const [tab, setTab] = useState("bills");
 
   const from30 = daysAgo(29);
   const monthSpend = rows.filter((r) => r.date >= from30).reduce((s, r) => s + r.amount, 0);
@@ -58,7 +65,7 @@ export function PurchasesTable({
     );
   });
 
-  return (
+  const billsPanel = (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
@@ -70,19 +77,37 @@ export function PurchasesTable({
         </div>
 
         <EntityDialog
-          key={editing?.id ?? "new"}
-          title={editing ? `Bill ${editing.bill_no ?? `#${editing.id}`}` : "Record Purchase"}
-          description="Bills paid or payable — raw stone also feeds inventory"
+          key={editing?.id ?? billFrom?.id ?? "new"}
+          title={
+            editing
+              ? `Bill ${editing.bill_no ?? `#${editing.id}`}`
+              : billFrom
+                ? `Bill ${billFrom.grn_no}`
+                : "Record Purchase"
+          }
+          description={
+            billFrom
+              ? "Stock is already in the yard from the goods receipt"
+              : "Bills paid or payable — raw stone also feeds inventory"
+          }
           open={open}
           onOpenChange={(o) => {
-            if (o) setEditing(null);
+            if (o) {
+              setEditing(null);
+              setBillFrom(null);
+            }
             setOpen(o);
           }}
           action={savePurchaseAction}
           submitLabel={editing ? "Update bill" : "Record purchase"}
           triggerLabel="Record Purchase"
         >
-          <PurchaseFields editing={editing} suppliers={suppliers} products={products} />
+          <PurchaseFields
+            editing={editing}
+            prefillGrn={editing ? null : billFrom}
+            suppliers={suppliers}
+            products={products}
+          />
         </EntityDialog>
       </div>
 
@@ -105,6 +130,7 @@ export function PurchasesTable({
                 <TableHead className="hidden sm:table-cell">Bill</TableHead>
                 <TableHead>Supplier / detail</TableHead>
                 <TableHead className="hidden md:table-cell">Category</TableHead>
+                <TableHead className="hidden lg:table-cell">Stock</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead className="text-right">Paid</TableHead>
                 <TableHead className="text-right">Status</TableHead>
@@ -126,6 +152,17 @@ export function PurchasesTable({
                     <span className="rounded-pill bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground ring-1 ring-white/10">
                       {humanize(r.category)}
                     </span>
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    {stockReceipt(r) ? (
+                      <span className="inline-flex items-center gap-1 rounded-pill bg-green/15 px-2 py-0.5 text-[11px] font-semibold text-green ring-1 ring-green/30">
+                        {stockReceipt(r)}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground" title="No stock effect">
+                        —
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right font-semibold text-white">{inr(r.amount)}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{inr(r.paid_amount)}</TableCell>
@@ -172,23 +209,74 @@ export function PurchasesTable({
       )}
     </>
   );
+
+  return (
+    <>
+      <Tabs value={tab} onValueChange={(v) => setTab(String(v))} className="gap-4">
+        <TabsList>
+          <TabsTrigger value="bills">Bills</TabsTrigger>
+          <TabsTrigger value="grns">Goods receipts (GRN)</TabsTrigger>
+        </TabsList>
+        <TabsContent value="bills" className="mt-4">
+          {billsPanel}
+        </TabsContent>
+        <TabsContent value="grns" className="mt-4">
+          <GrnTable
+            rows={grns}
+            suppliers={suppliers}
+            products={products}
+            onBill={(grn) => {
+              setEditing(null);
+              setBillFrom(grn);
+              setOpen(true);
+              setTab("bills");
+            }}
+          />
+        </TabsContent>
+      </Tabs>
+    </>
+  );
+}
+
+/** What this bill did (or will do) to stock, as a compact label. */
+function stockReceipt(r: PurchaseRow): string | null {
+  if (r.grn_id) {
+    return `${r.grn_no ?? "GRN"} ✓ ${(r.qty ?? 0) > 0 ? `${qty(r.qty ?? 0)} t` : "billed"}`;
+  }
+  if (r.category === "raw_stone" && (r.qty ?? 0) > 0) {
+    return `+${qty(r.qty ?? 0)} t${r.product_name ? ` ${r.product_name}` : ""}`;
+  }
+  return null;
 }
 
 function PurchaseFields({
   editing,
+  prefillGrn,
   suppliers,
   products,
 }: {
   editing: PurchaseRow | null;
+  prefillGrn: GrnRow | null;
   suppliers: SupplierRow[];
   products: ProductRow[];
 }) {
-  const [category, setCategory] = useState(editing?.category ?? "raw_stone");
+  const defaultGrn = prefillGrn;
+  const [category, setCategory] = useState(
+    prefillGrn ? "raw_stone" : editing?.category ?? "raw_stone"
+  );
   const isRaw = category === "raw_stone";
+  const grnQty = defaultGrn?.total_qty ?? 0;
+  const grnValue = defaultGrn?.value ?? 0;
+  const grnRate = grnQty > 0 ? Math.round((grnValue / grnQty) * 100) / 100 : 0;
+  const grnProduct =
+    defaultGrn && defaultGrn.items.length > 0
+      ? String(defaultGrn.items[0].product_id)
+      : undefined;
 
   return (
     <>
       <input type="hidden" name="id" value={editing?.id ?? ""} />
+      <input type="hidden" name="grn_id" value={defaultGrn ? String(defaultGrn.id) : editing?.grn_id ?? ""} />
       <div className="grid gap-4 sm:grid-cols-2">
         <SelectField
           label="Category"
@@ -198,34 +286,75 @@ function PurchaseFields({
           onChange={setCategory}
         />
         <SelectField
+          key={`supplier-${defaultGrn?.supplier_id ?? editing?.supplier_id ?? "none"}`}
           label="Supplier"
           name="supplier_id"
-          value={editing?.supplier_id != null ? String(editing.supplier_id) : undefined}
+          value={
+            defaultGrn?.supplier_id != null
+              ? String(defaultGrn.supplier_id)
+              : editing?.supplier_id != null
+                ? String(editing.supplier_id)
+                : undefined
+          }
           options={suppliers.map((s) => ({ value: String(s.id), label: s.name }))}
           placeholder="Select supplier…"
         />
         <DateField label="Bill date" name="date" defaultValue={editing?.date ?? today()} required />
-        <TextField label="Bill no." name="bill_no" defaultValue={editing?.bill_no ?? ""} placeholder="Optional" />
+        <TextField
+          label="Bill no."
+          name="bill_no"
+          defaultValue={editing?.bill_no ?? defaultGrn?.challan_no ?? ""}
+          placeholder="Optional"
+        />
       </div>
 
-      <TextAreaField label="Description" name="description" defaultValue={editing?.description ?? ""} placeholder="e.g. ROM boulders from quarry / diesel refill" />
+      <TextAreaField
+        label="Description"
+        name="description"
+        defaultValue={
+          editing?.description ??
+          (defaultGrn ? `Against ${defaultGrn.grn_no}${defaultGrn.challan_no ? ` · challan ${defaultGrn.challan_no}` : ""}` : "")
+        }
+        placeholder="e.g. ROM boulders from quarry / diesel refill"
+      />
 
       {isRaw && (
         <div className="grid gap-4 rounded-lg bg-canvas/60 p-3 ring-1 ring-white/5 sm:grid-cols-3">
           <SelectField
             label="Raw stone product"
             name="product_id"
-            value={editing?.product_id != null ? String(editing.product_id) : undefined}
+            value={
+              grnProduct ?? (editing?.product_id != null ? String(editing.product_id) : undefined)
+            }
             options={products.filter((p) => p.kind === "raw").map((p) => ({ value: String(p.id), label: p.name }))}
             placeholder="Product…"
           />
-          <NumberField label="Quantity (t)" name="qty" step="any" min={0} defaultValue={editing?.qty ?? ""} />
-          <NumberField label="Rate (₹/t)" name="rate" step="any" min={0} defaultValue={editing?.rate ?? ""} />
+          <NumberField
+            label="Quantity (t)"
+            name="qty"
+            step="any"
+            min={0}
+            defaultValue={defaultGrn ? grnQty : editing?.qty ?? ""}
+          />
+          <NumberField
+            label="Rate (₹/t)"
+            name="rate"
+            step="any"
+            min={0}
+            defaultValue={defaultGrn ? grnRate : editing?.rate ?? ""}
+          />
         </div>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <NumberField label="Amount ₹" name="amount" step="any" min={0} defaultValue={editing?.amount ?? ""} required />
+        <NumberField
+          label="Amount ₹"
+          name="amount"
+          step="any"
+          min={0}
+          defaultValue={defaultGrn ? grnValue : editing?.amount ?? ""}
+          required
+        />
         <NumberField label="Amount paid ₹" name="paid_amount" step="any" min={0} defaultValue={editing?.paid_amount ?? 0} />
       </div>
       <TextAreaField label="Notes" name="notes" defaultValue={editing?.notes ?? ""} placeholder="Optional remarks…" />

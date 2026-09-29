@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Truck } from "lucide-react";
+import { ScrollText, Truck } from "lucide-react";
 import type { SupplierRow } from "@/lib/repo/masters";
+import type { StatementDoc } from "@/lib/repo/statements";
+import { StatementDialog } from "@/components/modules/statement-dialog";
 import { saveSupplierAction, deleteSupplierAction } from "@/actions/masters";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -25,10 +27,17 @@ const CATEGORY_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
-export function SuppliersTable({ rows }: { rows: SupplierRow[] }) {
+export function SuppliersTable({
+  rows,
+  statements,
+}: {
+  rows: SupplierRow[];
+  statements: Record<number, StatementDoc>;
+}) {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<SupplierRow | null>(null);
   const [open, setOpen] = useState(false);
+  const [statementFor, setStatementFor] = useState<number | null>(null);
 
   const filtered = rows.filter((r) => {
     const q = query.toLowerCase();
@@ -92,7 +101,8 @@ export function SuppliersTable({ rows }: { rows: SupplierRow[] }) {
                 <TableHead className="text-xs tracking-widest text-muted-foreground uppercase">Name</TableHead>
                 <TableHead className="hidden sm:table-cell">Contact</TableHead>
                 <TableHead className="text-right">Purchases</TableHead>
-                <TableHead className="w-24 text-right">Actions</TableHead>
+                <TableHead className="text-right">Due</TableHead>
+                <TableHead className="w-28 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -103,17 +113,37 @@ export function SuppliersTable({ rows }: { rows: SupplierRow[] }) {
                     <Badge className="mt-1 block w-fit bg-blurple/15 text-blurple ring-1 ring-blurple/30">
                       {humanize(r.category)}
                     </Badge>
+                    {r.pending_grns > 0 && (
+                      <span className="mt-1 block text-[11px] font-semibold text-amber-300">
+                        {r.pending_grns} delivery awaiting bill
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="hidden text-muted-foreground sm:table-cell">
                     {r.phone ?? r.contact ?? "—"}
                   </TableCell>
                   <TableCell className="text-right font-semibold text-white">{inr(r.total_purchases)}</TableCell>
                   <TableCell className="text-right">
+                    <span className={r.due > 0.01 ? "font-semibold text-magenta" : "text-muted-foreground"}>
+                      {r.due > 0.01 ? inr(r.due) : "—"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
                         className="size-8 text-muted-foreground hover:text-white"
+                        aria-label={`Statement for ${r.name}`}
+                        onClick={() => setStatementFor(r.id)}
+                      >
+                        <ScrollText className="size-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-muted-foreground hover:text-white"
+                        aria-label={`Edit ${r.name}`}
                         onClick={() => {
                           setEditing(r);
                           setOpen(true);
@@ -148,6 +178,14 @@ export function SuppliersTable({ rows }: { rows: SupplierRow[] }) {
           </Table>
         </div>
       )}
+
+      <StatementDialog
+        doc={statementFor != null ? statements[statementFor] ?? null : null}
+        open={statementFor != null}
+        onOpenChange={(o) => {
+          if (!o) setStatementFor(null);
+        }}
+      />
     </>
   );
 }

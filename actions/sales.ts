@@ -25,6 +25,7 @@ const saleSchema = z.object({
   discount: z.number().min(0),
   tax: z.number().min(0),
   paid_amount: z.number().min(0),
+  order_id: z.number().nullable(),
   notes: z.string().optional(),
 });
 
@@ -42,6 +43,7 @@ export async function saveSaleAction(
     discount: n(formData, "discount"),
     tax: n(formData, "tax"),
     paid_amount: n(formData, "paid_amount"),
+    order_id: optN(formData, "order_id"),
     notes: opt(formData, "notes") ?? undefined,
   });
   if (!parsed.success) return err(parsed.error.issues[0]?.message ?? "Invalid input");

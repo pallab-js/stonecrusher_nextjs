@@ -18,7 +18,7 @@ export async function runLoadDemoData(): Promise<string> {
   await requireRole("admin");
   const r = loadDemoData();
   revalidatePath("/", "layout");
-  return `Demo data loaded — ${r.production} shifts, ${r.sales} invoices, ${r.payments} receipts, ${r.purchases} bills, ${r.expenses} expenses across 10 months.`;
+  return `Demo data loaded — ${r.production} shifts, ${r.sales} invoices, ${r.orders} LPOs, ${r.purchases} bills, ${r.grns} goods receipts, ${r.payments} receipts, ${r.expenses} expenses across 10 months.`;
 }
 
 export async function runClearData(): Promise<string> {

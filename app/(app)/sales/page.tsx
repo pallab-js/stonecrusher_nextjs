@@ -1,5 +1,6 @@
 import { listPayments, listSales } from "@/lib/repo/operations";
 import { listCustomers, listProducts } from "@/lib/repo/masters";
+import { listOrders } from "@/lib/repo/orders";
 import { PageHeader } from "@/components/shared/page-header";
 import { SalesTable } from "@/components/modules/sales-table";
 
@@ -10,13 +11,14 @@ export default function SalesPage() {
   const customers = listCustomers();
   const products = listProducts();
   const payments = listPayments();
+  const orders = listOrders();
   return (
     <>
       <PageHeader
         title="Sales & Dispatch"
         description="Invoices with vehicle details — stock is deducted from inventory automatically."
       />
-      <SalesTable rows={sales} products={products} customers={customers} payments={payments} />
+      <SalesTable rows={sales} products={products} customers={customers} payments={payments} orders={orders} />
     </>
   );
 }

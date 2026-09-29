@@ -127,6 +127,7 @@ export function SelectField({
       <Select
         name={name}
         value={selected}
+        items={options.map((o) => ({ value: o.value, label: o.label }))}
         onValueChange={(v) => {
           setSelected(v as string);
           onChange?.(v as string);

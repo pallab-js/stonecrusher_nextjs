@@ -29,6 +29,9 @@ export interface CustomerRow {
   active: number;
   total_sales: number;
   total_qty: number;
+  total_paid: number;
+  due: number;
+  open_orders: number;
 }
 
 export interface SupplierRow {
@@ -41,6 +44,9 @@ export interface SupplierRow {
   address: string | null;
   active: number;
   total_purchases: number;
+  total_paid: number;
+  due: number;
+  pending_grns: number;
 }
 
 export interface UserRow {
@@ -86,7 +92,13 @@ export function listCustomers(includeInactive = false): CustomerRow[] {
       `SELECT c.*,
         COALESCE((SELECT SUM(s.total) FROM sales s WHERE s.customer_id = c.id), 0) AS total_sales,
         COALESCE((SELECT SUM(si.qty) FROM sale_items si JOIN sales s ON s.id = si.sale_id
-                  WHERE s.customer_id = c.id), 0) AS total_qty
+                  WHERE s.customer_id = c.id), 0) AS total_qty,
+        COALESCE((SELECT SUM(s.paid_amount) FROM sales s WHERE s.customer_id = c.id), 0) AS total_paid,
+        COALESCE((SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id
+                  AND o.status IN ('open','partial')), 0) AS open_orders,
+        c.opening_balance
+          + COALESCE((SELECT SUM(s.total - s.paid_amount) FROM sales s WHERE s.customer_id = c.id), 0)
+          AS due
        FROM customers c
        ${includeInactive ? "" : "WHERE c.active = 1"}
        ORDER BY c.name COLLATE NOCASE`
@@ -105,7 +117,10 @@ export function listSuppliers(includeInactive = false): SupplierRow[] {
   return db
     .prepare(
       `SELECT s.*,
-        COALESCE((SELECT SUM(p.amount) FROM purchases p WHERE p.supplier_id = s.id), 0) AS total_purchases
+        COALESCE((SELECT SUM(p.amount) FROM purchases p WHERE p.supplier_id = s.id), 0) AS total_purchases,
+        COALESCE((SELECT SUM(p.paid_amount) FROM purchases p WHERE p.supplier_id = s.id), 0) AS total_paid,
+        COALESCE((SELECT COUNT(*) FROM grns g WHERE g.supplier_id = s.id AND g.status = 'received'), 0) AS pending_grns,
+        COALESCE((SELECT SUM(p.amount - p.paid_amount) FROM purchases p WHERE p.supplier_id = s.id), 0) AS due
        FROM suppliers s
        ${includeInactive ? "" : "WHERE s.active = 1"}
        ORDER BY s.name COLLATE NOCASE`

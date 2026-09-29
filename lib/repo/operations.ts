@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { recomputeOrderStatus } from "@/lib/repo/orders";
 
 /* ── Types ─────────────────────────────────────────────── */
 
@@ -41,6 +42,7 @@ export interface SaleRow {
   total: number;
   paid_amount: number;
   status: "unpaid" | "partial" | "paid";
+  order_id: number | null;
   notes: string | null;
   items: (SaleItemInput & { name: string; amount: number })[];
 }
@@ -53,6 +55,7 @@ export interface PurchaseRow {
   supplier_name: string | null;
   category: string;
   product_id: number | null;
+  product_name: string | null;
   description: string | null;
   qty: number | null;
   unit: string | null;
@@ -60,6 +63,8 @@ export interface PurchaseRow {
   amount: number;
   paid_amount: number;
   status: "unpaid" | "partial" | "paid";
+  grn_id: number | null;
+  grn_no: string | null;
   notes: string | null;
 }
 
@@ -262,6 +267,7 @@ export interface SaleInput {
   discount: number;
   tax: number;
   paid_amount: number;
+  order_id?: number | null;
   notes?: string;
   items: SaleItemInput[];
 }
@@ -282,11 +288,12 @@ export function saveSale(id: number | null, input: SaleInput): number {
     const status = paymentStatus(total, paid);
 
     let saleId: number;
+    let previousOrderId: number | null = null;
     if (id == null) {
       const info = db
         .prepare(
-          `INSERT INTO sales (invoice_no, date, customer_id, vehicle_no, transporter, subtotal, discount, tax, total, paid_amount, status, notes)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO sales (invoice_no, date, customer_id, vehicle_no, transporter, subtotal, discount, tax, total, paid_amount, status, order_id, notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           input.invoice_no,
@@ -300,14 +307,19 @@ export function saveSale(id: number | null, input: SaleInput): number {
           total,
           paid,
           status,
+          input.order_id ?? null,
           input.notes ?? null
         );
       saleId = Number(info.lastInsertRowid);
     } else {
       saleId = id;
+      const previousOrder = db.prepare("SELECT order_id FROM sales WHERE id = ?").get(id) as
+        | { order_id: number | null }
+        | undefined;
+      previousOrderId = previousOrder?.order_id ?? null;
       db.prepare(
         `UPDATE sales SET invoice_no = ?, date = ?, customer_id = ?, vehicle_no = ?, transporter = ?,
-         subtotal = ?, discount = ?, tax = ?, total = ?, paid_amount = ?, status = ?, notes = ? WHERE id = ?`
+         subtotal = ?, discount = ?, tax = ?, total = ?, paid_amount = ?, status = ?, order_id = ?, notes = ? WHERE id = ?`
       ).run(
         input.invoice_no,
         input.date,
@@ -320,6 +332,7 @@ export function saveSale(id: number | null, input: SaleInput): number {
         total,
         paid,
         status,
+        input.order_id ?? null,
         input.notes ?? null,
         id
       );
@@ -340,6 +353,8 @@ export function saveSale(id: number | null, input: SaleInput): number {
       insertTx.run(input.date, item.product_id, r2(item.qty), saleId, `Invoice ${input.invoice_no}`);
     }
 
+    if (input.order_id) recomputeOrderStatus(input.order_id);
+    if (previousOrderId && previousOrderId !== input.order_id) recomputeOrderStatus(previousOrderId);
     return saleId;
   });
   return run() as number;
@@ -348,9 +363,13 @@ export function saveSale(id: number | null, input: SaleInput): number {
 export function deleteSale(id: number): void {
   const db = getDb();
   const run = db.transaction(() => {
+    const order = db.prepare("SELECT order_id FROM sales WHERE id = ?").get(id) as
+      | { order_id: number | null }
+      | undefined;
     db.prepare("DELETE FROM inventory_tx WHERE ref_type = 'sale' AND ref_id = ?").run(id);
     db.prepare("DELETE FROM sale_items WHERE sale_id = ?").run(id);
     db.prepare("DELETE FROM sales WHERE id = ?").run(id);
+    if (order?.order_id) recomputeOrderStatus(order.order_id);
   });
   run();
 }
@@ -361,8 +380,11 @@ export function listPurchases(limit = 500): PurchaseRow[] {
   const db = getDb();
   return db
     .prepare(
-      `SELECT p.*, s.name AS supplier_name FROM purchases p
+      `SELECT p.*, s.name AS supplier_name, pr.name AS product_name, g.grn_no
+       FROM purchases p
        LEFT JOIN suppliers s ON s.id = p.supplier_id
+       LEFT JOIN products pr ON pr.id = p.product_id
+       LEFT JOIN grns g ON g.id = p.grn_id
        ORDER BY p.date DESC, p.id DESC LIMIT ?`
     )
     .all(limit) as PurchaseRow[];
@@ -380,6 +402,7 @@ export interface PurchaseInput {
   rate?: number | null;
   amount: number;
   paid_amount: number;
+  grn_id?: number | null;
   notes?: string;
 }
 
@@ -394,8 +417,8 @@ export function savePurchase(id: number | null, input: PurchaseInput): number {
     if (id == null) {
       const info = db
         .prepare(
-          `INSERT INTO purchases (bill_no, date, supplier_id, category, product_id, description, qty, unit, rate, amount, paid_amount, status, notes)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO purchases (bill_no, date, supplier_id, category, product_id, description, qty, unit, rate, amount, paid_amount, status, grn_id, notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           input.bill_no || null,
@@ -410,6 +433,7 @@ export function savePurchase(id: number | null, input: PurchaseInput): number {
           amount,
           paid,
           status,
+          input.grn_id ?? null,
           input.notes ?? null
         );
       purchaseId = Number(info.lastInsertRowid);
@@ -417,8 +441,8 @@ export function savePurchase(id: number | null, input: PurchaseInput): number {
       purchaseId = id;
       db.prepare(
         `UPDATE purchases SET bill_no = ?, date = ?, supplier_id = ?, category = ?, product_id = ?,
-         description = ?, qty = ?, unit = ?, rate = ?, amount = ?, paid_amount = ?, status = ?, notes = ?
-         WHERE id = ?`
+         description = ?, qty = ?, unit = ?, rate = ?, amount = ?, paid_amount = ?, status = ?,
+         grn_id = ?, notes = ? WHERE id = ?`
       ).run(
         input.bill_no || null,
         input.date,
@@ -432,13 +456,16 @@ export function savePurchase(id: number | null, input: PurchaseInput): number {
         amount,
         paid,
         status,
+        input.grn_id ?? null,
         input.notes ?? null,
         id
       );
       db.prepare("DELETE FROM inventory_tx WHERE ref_type = 'purchase' AND ref_id = ?").run(purchaseId);
     }
 
-    if (input.category === "raw_stone" && input.product_id && (input.qty ?? 0) > 0) {
+    if (input.grn_id) {
+      db.prepare("UPDATE grns SET status = 'billed' WHERE id = ?").run(input.grn_id);
+    } else if (input.category === "raw_stone" && input.product_id && (input.qty ?? 0) > 0) {
       db.prepare(
         `INSERT INTO inventory_tx (date, product_id, dir, qty, ref_type, ref_id, notes)
          VALUES (?, ?, 'in', ?, 'purchase', ?, ?)`
@@ -459,8 +486,12 @@ export function savePurchase(id: number | null, input: PurchaseInput): number {
 export function deletePurchase(id: number): void {
   const db = getDb();
   const run = db.transaction(() => {
+    const row = db.prepare("SELECT grn_id FROM purchases WHERE id = ?").get(id) as
+      | { grn_id: number | null }
+      | undefined;
     db.prepare("DELETE FROM inventory_tx WHERE ref_type = 'purchase' AND ref_id = ?").run(id);
     db.prepare("DELETE FROM purchases WHERE id = ?").run(id);
+    if (row?.grn_id) db.prepare("UPDATE grns SET status = 'received' WHERE id = ?").run(row.grn_id);
   });
   run();
 }

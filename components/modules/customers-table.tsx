@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Users } from "lucide-react";
+import { ScrollText, Users } from "lucide-react";
 import type { CustomerRow } from "@/lib/repo/masters";
+import type { StatementDoc } from "@/lib/repo/statements";
+import { StatementDialog } from "@/components/modules/statement-dialog";
 import { saveCustomerAction, deleteCustomerAction } from "@/actions/masters";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -14,10 +16,17 @@ import { NumberField, TextField } from "@/components/shared/fields";
 import { inr, tonnes } from "@/lib/format";
 import { Pencil, Trash2 } from "lucide-react";
 
-export function CustomersTable({ rows }: { rows: CustomerRow[] }) {
+export function CustomersTable({
+  rows,
+  statements,
+}: {
+  rows: CustomerRow[];
+  statements: Record<number, StatementDoc>;
+}) {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<CustomerRow | null>(null);
   const [open, setOpen] = useState(false);
+  const [statementFor, setStatementFor] = useState<number | null>(null);
 
   const filtered = rows.filter((r) => {
     const q = query.toLowerCase();
@@ -83,7 +92,8 @@ export function CustomersTable({ rows }: { rows: CustomerRow[] }) {
                 <TableHead className="hidden md:table-cell">Location</TableHead>
                 <TableHead className="text-right">Tonnage</TableHead>
                 <TableHead className="text-right">Sales</TableHead>
-                <TableHead className="w-24 text-right">Actions</TableHead>
+                <TableHead className="text-right">Due</TableHead>
+                <TableHead className="w-28 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -91,7 +101,10 @@ export function CustomersTable({ rows }: { rows: CustomerRow[] }) {
                 <TableRow key={r.id}>
                   <TableCell>
                     <span className="font-medium text-white">{r.name}</span>
-                    <span className="block text-xs text-muted-foreground">{r.state ?? "—"}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {r.state ?? "—"}
+                      {r.open_orders > 0 ? ` · ${r.open_orders} open LPO` : ""}
+                    </span>
                   </TableCell>
                   <TableCell className="hidden text-muted-foreground sm:table-cell">
                     {r.phone ?? r.contact ?? "—"}
@@ -102,7 +115,27 @@ export function CustomersTable({ rows }: { rows: CustomerRow[] }) {
                   <TableCell className="text-right text-muted-foreground">{tonnes(r.total_qty)}</TableCell>
                   <TableCell className="text-right font-semibold text-white">{inr(r.total_sales)}</TableCell>
                   <TableCell className="text-right">
+                    <span
+                      className={
+                        r.due > 0.01
+                          ? "font-semibold text-magenta"
+                          : "text-muted-foreground"
+                      }
+                    >
+                      {r.due > 0.01 ? inr(r.due) : "—"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-muted-foreground hover:text-white"
+                        aria-label={`Statement for ${r.name}`}
+                        onClick={() => setStatementFor(r.id)}
+                      >
+                        <ScrollText className="size-3.5" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -145,6 +178,14 @@ export function CustomersTable({ rows }: { rows: CustomerRow[] }) {
           </Table>
         </div>
       )}
+
+      <StatementDialog
+        doc={statementFor != null ? statements[statementFor] ?? null : null}
+        open={statementFor != null}
+        onOpenChange={(o) => {
+          if (!o) setStatementFor(null);
+        }}
+      />
     </>
   );
 }
