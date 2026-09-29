@@ -1,4 +1,4 @@
-export const SCHEMA = `
+
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -54,45 +54,6 @@ CREATE TABLE IF NOT EXISTS suppliers (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE IF NOT EXISTS orders (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  order_no TEXT NOT NULL UNIQUE,
-  date TEXT NOT NULL,
-  customer_id INTEGER REFERENCES customers(id),
-  delivery_date TEXT,
-  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','partial','closed','cancelled')),
-  notes TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS order_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-  product_id INTEGER NOT NULL REFERENCES products(id),
-  qty REAL NOT NULL DEFAULT 0,
-  rate REAL NOT NULL DEFAULT 0
-);
-
-CREATE TABLE IF NOT EXISTS grns (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  grn_no TEXT NOT NULL UNIQUE,
-  date TEXT NOT NULL,
-  supplier_id INTEGER REFERENCES suppliers(id),
-  vehicle_no TEXT,
-  challan_no TEXT,
-  status TEXT NOT NULL DEFAULT 'received' CHECK (status IN ('received','billed','cancelled')),
-  notes TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS grn_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  grn_id INTEGER NOT NULL REFERENCES grns(id) ON DELETE CASCADE,
-  product_id INTEGER NOT NULL REFERENCES products(id),
-  qty REAL NOT NULL DEFAULT 0,
-  rate REAL NOT NULL DEFAULT 0
-);
-
 CREATE TABLE IF NOT EXISTS production (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   date TEXT NOT NULL,
@@ -126,7 +87,6 @@ CREATE TABLE IF NOT EXISTS sales (
   total REAL NOT NULL DEFAULT 0,
   paid_amount REAL NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'unpaid' CHECK (status IN ('unpaid','partial','paid')),
-  order_id INTEGER REFERENCES orders(id),
   notes TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -154,7 +114,6 @@ CREATE TABLE IF NOT EXISTS purchases (
   amount REAL NOT NULL DEFAULT 0,
   paid_amount REAL NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'unpaid' CHECK (status IN ('unpaid','partial','paid')),
-  grn_id INTEGER REFERENCES grns(id),
   notes TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -187,19 +146,12 @@ CREATE TABLE IF NOT EXISTS inventory_tx (
   product_id INTEGER NOT NULL REFERENCES products(id),
   dir TEXT NOT NULL CHECK (dir IN ('in','out')),
   qty REAL NOT NULL DEFAULT 0,
-  ref_type TEXT NOT NULL DEFAULT 'manual' CHECK (ref_type IN ('production','sale','purchase','grn','manual')),
+  ref_type TEXT NOT NULL DEFAULT 'manual' CHECK (ref_type IN ('production','sale','purchase','manual')),
   ref_id INTEGER,
   notes TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-`;
-
-/**
- * Indexes are applied after the column migrations: an older database may not
- * have every indexed column yet (e.g. sales.order_id), so ensureColumns runs first.
- */
-export const SCHEMA_INDEXES = `
 CREATE INDEX IF NOT EXISTS idx_production_date ON production(date);
 CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(date);
 CREATE INDEX IF NOT EXISTS idx_sales_customer ON sales(customer_id);
@@ -211,33 +163,3 @@ CREATE INDEX IF NOT EXISTS idx_sale_items_sale ON sale_items(sale_id);
 CREATE INDEX IF NOT EXISTS idx_prodout_production ON production_output(production_id);
 CREATE INDEX IF NOT EXISTS idx_payments_sale ON payments(sale_id);
 CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(date);
-CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id);
-CREATE INDEX IF NOT EXISTS idx_orders_date ON orders(date);
-CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
-CREATE INDEX IF NOT EXISTS idx_sales_order ON sales(order_id);
-CREATE INDEX IF NOT EXISTS idx_grns_supplier ON grns(supplier_id);
-CREATE INDEX IF NOT EXISTS idx_grns_date ON grns(date);
-CREATE INDEX IF NOT EXISTS idx_grn_items_grn ON grn_items(grn_id);
-CREATE INDEX IF NOT EXISTS idx_purchases_grn ON purchases(grn_id);
-`;
-
-
-
-export const DEFAULT_SETTINGS: Record<string, string> = {
-  unit_name: "Shree Stone Crusher",
-  unit_location: "Industrial Area, Guwahati, Assam",
-  unit_address: "Plot 14, Industrial Area, Guwahati, Assam 781026",
-  unit_gstin: "18ABCDE1234F1Z5",
-  unit_phone: "+91 98640 12345",
-  unit_lat: "26.1445",
-  unit_lng: "91.7362",
-  currency: "INR",
-  invoice_prefix: "INV",
-  next_invoice_no: "1",
-  order_prefix: "LPO",
-  next_order_no: "1",
-  grn_prefix: "GRN",
-  next_grn_no: "1",
-  financial_year_start: "04-01",
-  gst_rate: "5",
-};

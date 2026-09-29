@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
-import { SCHEMA, DEFAULT_SETTINGS } from "@/lib/schema";
+import { SCHEMA, SCHEMA_INDEXES, DEFAULT_SETTINGS } from "@/lib/schema";
 import { hashPin } from "@/lib/auth";
 import { dataDir } from "@/lib/paths";
 
@@ -60,6 +60,7 @@ function bootstrap(db: Database.Database) {
   db.exec(SCHEMA);
   ensureColumns(db);
   migrateInventoryTx(db);
+  db.exec(SCHEMA_INDEXES);
 
   const insertSetting = db.prepare(
     "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING"
