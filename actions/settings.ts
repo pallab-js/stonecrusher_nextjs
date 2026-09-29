@@ -18,7 +18,7 @@ export async function runLoadDemoData(): Promise<string> {
   await requireRole("admin");
   const r = loadDemoData();
   revalidatePath("/", "layout");
-  return `Demo data loaded — ${r.production} shifts, ${r.sales} invoices, ${r.purchases} bills, ${r.expenses} expenses across 10 months.`;
+  return `Demo data loaded — ${r.production} shifts, ${r.sales} invoices, ${r.payments} receipts, ${r.purchases} bills, ${r.expenses} expenses across 10 months.`;
 }
 
 export async function runClearData(): Promise<string> {
@@ -39,6 +39,9 @@ export async function saveUnitSettingsAction(
   if (name.length < 2) return err("Unit name is required");
   setSetting("unit_name", name);
   setSetting("unit_location", s(formData, "unit_location"));
+  setSetting("unit_address", s(formData, "unit_address"));
+  setSetting("unit_gstin", s(formData, "unit_gstin"));
+  setSetting("unit_phone", s(formData, "unit_phone"));
   setSetting("unit_lat", s(formData, "unit_lat"));
   setSetting("unit_lng", s(formData, "unit_lng"));
   setSetting("invoice_prefix", s(formData, "invoice_prefix") || "INV");

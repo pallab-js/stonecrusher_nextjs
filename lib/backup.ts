@@ -8,6 +8,7 @@ const TABLES = [
   "production_output",
   "sales",
   "sale_items",
+  "payments",
   "purchases",
   "expenses",
   "inventory_tx",

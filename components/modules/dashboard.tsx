@@ -31,11 +31,13 @@ function KpiCard({
   value,
   hint,
   tone = "blurple",
+  href,
 }: {
   label: string;
   value: string;
   hint?: React.ReactNode;
   tone?: "blurple" | "magenta" | "black" | "surface";
+  href?: string;
 }) {
   const tones = {
     blurple: "bg-blurple text-white",
@@ -43,12 +45,23 @@ function KpiCard({
     black: "bg-black text-white ring-1 ring-white/10",
     surface: "bg-surface text-white ring-1 ring-white/10",
   };
-  return (
-    <div className={"flex flex-col justify-between rounded-feature p-5 " + tones[tone]}>
-      <p className="text-[11px] font-bold tracking-[0.14em] uppercase opacity-80">{label}</p>
+  const body = (
+    <>
+      <p className="flex items-center justify-between text-[11px] font-bold tracking-[0.14em] uppercase opacity-80">
+        {label}
+        {href && <ArrowUpRight className="size-3.5 opacity-70 transition group-hover:opacity-100" />}
+      </p>
       <p className="stat-number mt-4 text-4xl">{value}</p>
       {hint && <div className="mt-2 text-xs font-medium opacity-85">{hint}</div>}
-    </div>
+    </>
+  );
+  const base = "group flex flex-col justify-between rounded-feature p-5 transition outline-none " + tones[tone];
+  return href ? (
+    <Link href={href} className={base + " focus-visible:ring-2 focus-visible:ring-green/70"}>
+      {body}
+    </Link>
+  ) : (
+    <div className={base}>{body}</div>
   );
 }
 
@@ -130,22 +143,26 @@ export function Dashboard({
           value={tonnes(kpis.todayProduction)}
           hint="graded aggregates produced"
           tone="blurple"
+          href="/production"
         />
         <KpiCard
           label="This month"
           value={tonnes(kpis.monthProduction)}
           hint={`from ${tonnes(kpis.monthRaw)} raw stone`}
           tone="magenta"
+          href="/reports?period=30"
         />
         <KpiCard
           label="Stock on ground"
           value={tonnes(kpis.totalStock)}
           hint={`valued at ${inr(kpis.stockValue)}`}
           tone="black"
+          href="/inventory"
         />
         <KpiCard
           label="Revenue (MTD)"
           value={inr(kpis.monthRevenue)}
+          href="/sales"
           hint={
             <span className="flex items-center gap-1">
               {kpis.monthProfit >= 0 ? (
@@ -163,12 +180,14 @@ export function Dashboard({
           value={inr(kpis.receivables)}
           hint={`${kpis.openInvoices} open invoice${kpis.openInvoices === 1 ? "" : "s"}`}
           tone="surface"
+          href="/reports"
         />
         <KpiCard
           label="Downtime (MTD)"
           value={`${kpis.monthDowntime.toFixed(1)} h`}
           hint="machine stoppage this month"
           tone="surface"
+          href="/production"
         />
       </div>
 

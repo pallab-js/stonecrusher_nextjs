@@ -548,3 +548,233 @@ export function saveManualTx(input: {
 export function deleteManualTx(id: number): void {
   getDb().prepare("DELETE FROM inventory_tx WHERE id = ? AND ref_type = 'manual'").run(id);
 }
+
+/* ── Payments (receipts against invoices) ──────────────── */
+
+export interface PaymentRow {
+  id: number;
+  sale_id: number;
+  date: string;
+  amount: number;
+  mode: "cash" | "upi" | "bank" | "cheque";
+  reference: string | null;
+  notes: string | null;
+}
+
+export function listPayments(saleId?: number): PaymentRow[] {
+  const db = getDb();
+  const cols = "id, sale_id, date, amount, mode, reference, notes";
+  if (saleId != null) {
+    return db
+      .prepare(`SELECT ${cols} FROM payments WHERE sale_id = ? ORDER BY date DESC, id DESC`)
+      .all(saleId) as PaymentRow[];
+  }
+  return db
+    .prepare(`SELECT ${cols} FROM payments ORDER BY date DESC, id DESC LIMIT 2000`)
+    .all() as PaymentRow[];
+}
+
+export interface PaymentInput {
+  date: string;
+  amount: number;
+  mode: string;
+  reference?: string;
+  notes?: string;
+}
+
+export function getBalance(saleId: number): number {
+  const db = getDb();
+  const sale = db.prepare("SELECT total, paid_amount FROM sales WHERE id = ?").get(saleId) as
+    | { total: number; paid_amount: number }
+    | undefined;
+  if (!sale) return 0;
+  return r2(Math.max(0, sale.total - sale.paid_amount));
+}
+
+export function recordPayment(saleId: number, input: PaymentInput): number {
+  const db = getDb();
+  const run = db.transaction(() => {
+    const sale = db.prepare("SELECT total, paid_amount FROM sales WHERE id = ?").get(saleId) as
+      | { total: number; paid_amount: number }
+      | undefined;
+    if (!sale) throw new Error("Invoice not found");
+    const amount = r2(Math.min(input.amount, Math.max(0, sale.total - sale.paid_amount)));
+    const info = db
+      .prepare(
+        "INSERT INTO payments (sale_id, date, amount, mode, reference, notes) VALUES (?, ?, ?, ?, ?, ?)"
+      )
+      .run(saleId, input.date, amount, input.mode, input.reference || null, input.notes || null);
+    const paid = r2(sale.paid_amount + amount);
+    db.prepare("UPDATE sales SET paid_amount = ?, status = ? WHERE id = ?").run(
+      paid,
+      paymentStatus(sale.total, paid),
+      saleId
+    );
+    return Number(info.lastInsertRowid);
+  });
+  return run() as number;
+}
+
+export function deletePayment(id: number): void {
+  const db = getDb();
+  const run = db.transaction(() => {
+    const payment = db.prepare("SELECT sale_id, amount FROM payments WHERE id = ?").get(id) as
+      | { sale_id: number; amount: number }
+      | undefined;
+    if (!payment) return;
+    db.prepare("DELETE FROM payments WHERE id = ?").run(id);
+    const sale = db.prepare("SELECT total, paid_amount FROM sales WHERE id = ?").get(payment.sale_id) as {
+      total: number;
+      paid_amount: number;
+    };
+    const paid = r2(Math.max(0, sale.paid_amount - payment.amount));
+    db.prepare("UPDATE sales SET paid_amount = ?, status = ? WHERE id = ?").run(
+      paid,
+      paymentStatus(sale.total, paid),
+      payment.sale_id
+    );
+  });
+  run();
+}
+
+/* ── Invoice document (print views) ────────────────────── */
+
+export interface InvoiceDoc extends SaleRow {
+  customer_address: string | null;
+  customer_gstin: string | null;
+  customer_state: string | null;
+  customer_contact: string | null;
+  customer_phone: string | null;
+}
+
+export function getInvoiceDoc(id: number): InvoiceDoc | null {
+  const db = getDb();
+  const row = db
+    .prepare(
+      `SELECT s.*, c.name AS customer_name, c.address AS customer_address, c.gstin AS customer_gstin,
+        c.state AS customer_state, c.contact AS customer_contact, c.phone AS customer_phone
+       FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.id = ?`
+    )
+    .get(id) as (Omit<InvoiceDoc, "items"> & Record<string, unknown>) | undefined;
+  if (!row) return null;
+  const items = db
+    .prepare(
+      `SELECT si.product_id, si.qty, si.rate, si.amount, p.name
+       FROM sale_items si JOIN products p ON p.id = si.product_id WHERE si.sale_id = ?`
+    )
+    .all(id) as InvoiceDoc["items"];
+  return { ...(row as unknown as InvoiceDoc), items };
+}
+
+export interface PaymentDoc extends PaymentRow {
+  invoice_no: string;
+  invoice_date: string;
+  invoice_total: number;
+  paid_amount: number;
+  status: "unpaid" | "partial" | "paid";
+  customer_name: string | null;
+}
+
+export function getPaymentDoc(id: number): PaymentDoc | null {
+  const db = getDb();
+  const row = db
+    .prepare(
+      `SELECT p.id, p.sale_id, p.date, p.amount, p.mode, p.reference, p.notes,
+        s.invoice_no, s.date AS invoice_date, s.total AS invoice_total, s.paid_amount, s.status,
+        c.name AS customer_name
+       FROM payments p
+       JOIN sales s ON s.id = p.sale_id
+       LEFT JOIN customers c ON c.id = s.customer_id
+       WHERE p.id = ?`
+    )
+    .get(id) as PaymentDoc | undefined;
+  return row ?? null;
+}
+
+/* ── Stock ledger (print view) ─────────────────────────── */
+
+export interface LedgerEntry {
+  id: number;
+  date: string;
+  dir: "in" | "out";
+  qty: number;
+  ref_type: string;
+  notes: string | null;
+  balance: number;
+}
+
+export interface LedgerDoc {
+  id: number;
+  code: string;
+  name: string;
+  opening: number;
+  rate: number;
+  rows: LedgerEntry[];
+  closing: number;
+}
+
+export function getStockLedger(productId: number): LedgerDoc | null {
+  const db = getDb();
+  const product = db
+    .prepare("SELECT id, code, name, opening_stock, rate FROM products WHERE id = ?")
+    .get(productId) as { id: number; code: string; name: string; opening_stock: number; rate: number } | undefined;
+  if (!product) return null;
+
+  const txs = db
+    .prepare(
+      "SELECT id, date, dir, qty, ref_type, notes FROM inventory_tx WHERE product_id = ? ORDER BY date ASC, id ASC"
+    )
+    .all(productId) as Omit<LedgerEntry, "balance">[];
+
+  let balance = product.opening_stock;
+  const rows = txs.map((t) => {
+    balance = r2(balance + (t.dir === "in" ? t.qty : -t.qty));
+    return { ...t, balance };
+  });
+
+  return {
+    id: product.id,
+    code: product.code,
+    name: product.name,
+    opening: product.opening_stock,
+    rate: product.rate,
+    rows,
+    closing: r2(balance),
+  };
+}
+
+export interface StockSummaryRow {
+  id: number;
+  code: string;
+  name: string;
+  kind: string;
+  opening: number;
+  inflow: number;
+  outflow: number;
+  closing: number;
+  rate: number;
+}
+
+export function getStockSummary(): StockSummaryRow[] {
+  const db = getDb();
+  const products = db
+    .prepare("SELECT id, code, name, kind, opening_stock, rate FROM products WHERE active = 1 ORDER BY kind, code")
+    .all() as { id: number; code: string; name: string; kind: string; opening_stock: number; rate: number }[];
+
+  const aggStmt = db.prepare(
+    `SELECT COALESCE(SUM(CASE WHEN dir = 'in' THEN qty ELSE 0 END), 0) AS inflow,
+            COALESCE(SUM(CASE WHEN dir = 'out' THEN qty ELSE 0 END), 0) AS outflow
+     FROM inventory_tx WHERE product_id = ?`
+  );
+
+  return products.map((p) => {
+    const agg = aggStmt.get(p.id) as { inflow: number; outflow: number };
+    return {
+      ...p,
+      opening: p.opening_stock,
+      inflow: r2(agg.inflow),
+      outflow: r2(agg.outflow),
+      closing: r2(p.opening_stock + agg.inflow - agg.outflow),
+    };
+  });
+}

@@ -146,3 +146,107 @@ export function getReportData(from: string | null) {
 }
 
 export type ReportData = ReturnType<typeof getReportData>;
+
+/* ── Receivables ageing ────────────────────────────────── */
+
+export type AgeingKey = "current" | "d16_30" | "d31_60" | "d61_90" | "d90";
+
+export const AGEING_BUCKETS: { key: AgeingKey; label: string; short: string }[] = [
+  { key: "current", label: "0–15 days", short: "0–15" },
+  { key: "d16_30", label: "16–30 days", short: "16–30" },
+  { key: "d31_60", label: "31–60 days", short: "31–60" },
+  { key: "d61_90", label: "61–90 days", short: "61–90" },
+  { key: "d90", label: "90+ days", short: "90+" },
+];
+
+function ageingKey(days: number): AgeingKey {
+  if (days <= 15) return "current";
+  if (days <= 30) return "d16_30";
+  if (days <= 60) return "d31_60";
+  if (days <= 90) return "d61_90";
+  return "d90";
+}
+
+export interface AgeingInvoice {
+  invoice_no: string;
+  date: string;
+  customer_id: number | null;
+  customer_name: string;
+  balance: number;
+  days: number;
+  bucket: AgeingKey;
+}
+
+export interface AgeingCustomer {
+  customer_id: number | null;
+  customer_name: string;
+  invoices: number;
+  total: number;
+  oldest_days: number;
+  buckets: Record<AgeingKey, number>;
+}
+
+export interface AgeingReport {
+  rows: AgeingInvoice[];
+  customers: AgeingCustomer[];
+  buckets: { key: AgeingKey; label: string; short: string; total: number; count: number }[];
+  total: number;
+  overdue: number;
+}
+
+export function getAgeing(): AgeingReport {
+  const db = getDb();
+  const rows = db
+    .prepare(
+      `SELECT s.invoice_no, s.date, c.id AS customer_id,
+        COALESCE(c.name, 'Unassigned') AS customer_name,
+        ROUND(s.total - s.paid_amount, 2) AS balance,
+        CAST(MAX(0, julianday('now') - julianday(s.date)) AS INTEGER) AS days
+       FROM sales s LEFT JOIN customers c ON c.id = s.customer_id
+       WHERE s.status != 'paid' AND (s.total - s.paid_amount) > 0.01
+       ORDER BY days DESC, s.date DESC`
+    )
+    .all() as Omit<AgeingInvoice, "bucket">[];
+
+  const withBucket: AgeingInvoice[] = rows.map((r) => ({ ...r, bucket: ageingKey(r.days) }));
+
+  const byCustomer = new Map<number | null, AgeingCustomer>();
+  for (const r of withBucket) {
+    const key = r.customer_id;
+    let entry = byCustomer.get(key);
+    if (!entry) {
+      entry = {
+        customer_id: r.customer_id,
+        customer_name: r.customer_name,
+        invoices: 0,
+        total: 0,
+        oldest_days: 0,
+        buckets: { current: 0, d16_30: 0, d31_60: 0, d61_90: 0, d90: 0 },
+      };
+      byCustomer.set(key, entry);
+    }
+    entry.invoices += 1;
+    entry.total = Math.round((entry.total + r.balance) * 100) / 100;
+    entry.oldest_days = Math.max(entry.oldest_days, r.days);
+    entry.buckets[r.bucket] = Math.round((entry.buckets[r.bucket] + r.balance) * 100) / 100;
+  }
+
+  const buckets = AGEING_BUCKETS.map((b) => {
+    const matching = withBucket.filter((r) => r.bucket === b.key);
+    return {
+      ...b,
+      total: Math.round(matching.reduce((s, r) => s + r.balance, 0) * 100) / 100,
+      count: matching.length,
+    };
+  });
+
+  const total = Math.round(withBucket.reduce((s, r) => s + r.balance, 0) * 100) / 100;
+
+  return {
+    rows: withBucket,
+    customers: [...byCustomer.values()].sort((a, b) => b.total - a.total),
+    buckets,
+    total,
+    overdue: withBucket.filter((r) => r.days > 15).reduce((s, r) => s + r.balance, 0),
+  };
+}

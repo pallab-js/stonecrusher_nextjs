@@ -98,6 +98,9 @@ export function SettingsView({
         <form action={unitForm.formAction} className="grid max-w-2xl gap-4 sm:grid-cols-2">
           <TextField label="Unit name" name="unit_name" defaultValue={settings.unit_name ?? ""} required />
           <TextField label="Location" name="unit_location" defaultValue={settings.unit_location ?? ""} />
+          <TextField label="Address (on invoices)" name="unit_address" defaultValue={settings.unit_address ?? ""} className="sm:col-span-2" />
+          <TextField label="GSTIN" name="unit_gstin" defaultValue={settings.unit_gstin ?? ""} placeholder="18ABCDE1234F1Z5" />
+          <TextField label="Phone" name="unit_phone" defaultValue={settings.unit_phone ?? ""} placeholder="+91 98640 12345" />
           <TextField label="Base latitude" name="unit_lat" defaultValue={settings.unit_lat ?? ""} inputMode="decimal" />
           <TextField label="Base longitude" name="unit_lng" defaultValue={settings.unit_lng ?? ""} inputMode="decimal" />
           <TextField label="Invoice prefix" name="invoice_prefix" defaultValue={settings.invoice_prefix ?? "INV"} />

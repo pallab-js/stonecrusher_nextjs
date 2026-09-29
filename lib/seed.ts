@@ -71,6 +71,7 @@ export interface SeedResult {
   suppliers: number;
   production: number;
   sales: number;
+  payments: number;
   purchases: number;
   expenses: number;
 }
@@ -82,6 +83,7 @@ export function loadDemoData(): SeedResult {
   const wipe = () => {
     for (const t of [
       "inventory_tx",
+      "payments",
       "sale_items",
       "sales",
       "production_output",
@@ -138,6 +140,7 @@ export function loadDemoData(): SeedResult {
 
     let productionCount = 0;
     let salesCount = 0;
+    let paymentCount = 0;
     let purchaseCount = 0;
     let expenseCount = 0;
     let invoiceSeq = 1;
@@ -300,7 +303,7 @@ export function loadDemoData(): SeedResult {
         const total = subtotal + tax;
         const paidRoll = rnd();
         const paid = paidRoll > 0.6 ? total : paidRoll > 0.3 ? total * rnd() : 0;
-        saveSale(null, {
+        const saleId = saveSale(null, {
           invoice_no: invoiceNo,
           date,
           customer_id: customer,
@@ -316,6 +319,28 @@ export function loadDemoData(): SeedResult {
           items,
         });
         salesCount++;
+
+        /* itemised receipt for whatever was collected */
+        const collected = Math.round(paid);
+        if (collected > 0) {
+          const payDate = new Date(`${date}T00:00:00`);
+          payDate.setDate(payDate.getDate() + 1 + Math.floor(rnd() * 6));
+          const now = new Date();
+          now.setHours(0, 0, 0, 0);
+          if (payDate.getTime() > now.getTime()) payDate.setTime(now.getTime());
+          const mode = ["cash", "upi", "bank", "cheque"][Math.floor(rnd() * 4)];
+          db.prepare(
+            "INSERT INTO payments (sale_id, date, amount, mode, reference, notes) VALUES (?, ?, ?, ?, ?, ?)"
+          ).run(
+            saleId,
+            iso(payDate),
+            collected,
+            mode,
+            mode === "cash" ? null : `${mode === "bank" ? "NEFT" : mode.toUpperCase()}-${100000 + Math.floor(rnd() * 899999)}`,
+            collected < Math.round(total) ? "Part payment" : null
+          );
+          paymentCount++;
+        }
       }
     }
 
@@ -335,6 +360,7 @@ export function loadDemoData(): SeedResult {
       suppliers: SUPPLIERS.length,
       production: productionCount,
       sales: salesCount,
+      payments: paymentCount,
       purchases: purchaseCount,
       expenses: expenseCount,
     };
@@ -348,6 +374,7 @@ export function clearAllData(): void {
   const run = db.transaction(() => {
     for (const t of [
       "inventory_tx",
+      "payments",
       "sale_items",
       "sales",
       "production_output",

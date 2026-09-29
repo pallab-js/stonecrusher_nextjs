@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Boxes, PackageSearch, Pencil, SlidersHorizontal, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { BookOpen, Boxes, PackageSearch, Pencil, SlidersHorizontal, Trash2 } from "lucide-react";
 import type { ProductRow } from "@/lib/repo/masters";
 import type { TxRow } from "@/lib/repo/operations";
 import { saveProductAction } from "@/actions/masters";
@@ -97,6 +98,12 @@ export function InventoryView({
           >
             <AdjustFields preselectedProductId={preselectedProductId} products={products} />
           </EntityDialog>
+          <Link
+            href="/inventory/ledger"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-surface px-3.5 text-sm font-semibold text-white ring-1 ring-white/10 transition hover:bg-accent"
+          >
+            <BookOpen className="size-4" /> Stock ledger
+          </Link>
         </div>
       </div>
 
@@ -144,16 +151,24 @@ export function InventoryView({
                 </div>
                 <div className="mt-3 flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">₹{p.rate}/t</span>
-                  <button
-                    type="button"
-                    className="inline-flex h-7 items-center gap-1.5 rounded-md bg-blurple/15 px-2.5 text-xs font-semibold text-blurple transition hover:bg-blurple/25"
-                    onClick={() => {
-                      setPreselectedProductId(p.id);
-                      setAdjustOpen(true);
-                    }}
-                  >
-                    <SlidersHorizontal className="size-3.5" /> Adjust
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <Link
+                      href={`/inventory/ledger?product=${p.id}`}
+                      className="inline-flex h-7 items-center gap-1 rounded-md bg-canvas/80 px-2.5 text-xs font-semibold text-muted-foreground ring-1 ring-white/10 transition hover:text-white"
+                    >
+                      Ledger
+                    </Link>
+                    <button
+                      type="button"
+                      className="inline-flex h-7 items-center gap-1.5 rounded-md bg-blurple/15 px-2.5 text-xs font-semibold text-blurple transition hover:bg-blurple/25"
+                      onClick={() => {
+                        setPreselectedProductId(p.id);
+                        setAdjustOpen(true);
+                      }}
+                    >
+                      <SlidersHorizontal className="size-3.5" /> Adjust
+                    </button>
+                  </div>
                 </div>
               </div>
             );

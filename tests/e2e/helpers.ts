@@ -29,3 +29,12 @@ export async function bodyText(page: Page) {
 export async function expectVisibleText(page: Page, pattern: RegExp) {
   await expect(page.getByText(pattern).first()).toBeVisible();
 }
+
+/** Loads the deterministic demo dataset from Settings (admin session required). */
+export async function seedUnit(page: Page) {
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "Load demo / seed data" }).click();
+  await page.getByRole("alertdialog").waitFor();
+  await page.getByRole("button", { name: "Load demo data" }).click();
+  await expect(page.getByText(/demo data loaded/i)).toBeVisible();
+}

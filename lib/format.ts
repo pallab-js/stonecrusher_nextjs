@@ -74,3 +74,38 @@ export function shiftLabel(shift: string): string {
 export function humanize(s: string): string {
   return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
+
+const ONES = [
+  "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+  "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen",
+];
+const TENS = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+function under1000(n: number): string {
+  if (n <= 0) return "";
+  if (n < 20) return ONES[n];
+  if (n < 100) return TENS[Math.floor(n / 10)] + (n % 10 ? ` ${ONES[n % 10]}` : "");
+  return `${ONES[Math.floor(n / 100)]} Hundred${n % 100 ? ` ${under1000(n % 100)}` : ""}`;
+}
+
+/** Indian numbering: crore / lakh / thousand — used on invoices and receipts. */
+export function amountInWords(amount: number): string {
+  const abs = Math.abs(amount);
+  const rupees = Math.floor(abs);
+  const paise = Math.round((abs - rupees) * 100);
+  if (rupees === 0 && paise === 0) return "Zero Rupees Only";
+
+  const parts: string[] = [];
+  const crore = Math.floor(rupees / 10_000_000);
+  const lakh = Math.floor((rupees % 10_000_000) / 100_000);
+  const thousand = Math.floor((rupees % 100_000) / 1_000);
+  const rest = rupees % 1_000;
+  if (crore) parts.push(`${under1000(crore)} Crore`);
+  if (lakh) parts.push(`${under1000(lakh)} Lakh`);
+  if (thousand) parts.push(`${under1000(thousand)} Thousand`);
+  if (rest) parts.push(under1000(rest));
+
+  const rupeePart = parts.length ? `${parts.join(" ")} Rupees` : "";
+  const paisePart = paise ? `${under1000(paise)} Paise` : "";
+  return `${[rupeePart, paisePart].filter(Boolean).join(" and ")} Only`;
+}

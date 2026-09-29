@@ -155,3 +155,30 @@ export function listUsers(): UserRow[] {
     .prepare("SELECT id, name, username, role, active, created_at FROM users ORDER BY id")
     .all() as UserRow[];
 }
+
+/* ── Unit profile (invoice header) ─────────────────────── */
+
+export interface UnitProfile {
+  name: string;
+  address: string;
+  gstin: string;
+  phone: string;
+  location: string;
+  gstRate: string;
+  lat: string;
+  lng: string;
+}
+
+export function getUnitProfile(): UnitProfile {
+  const s = getSettings();
+  return {
+    name: s.unit_name || "Stone crusher unit",
+    address: s.unit_address || s.unit_location || "",
+    gstin: s.unit_gstin || "",
+    phone: s.unit_phone || "",
+    location: s.unit_location || "",
+    gstRate: s.gst_rate || "5",
+    lat: s.unit_lat || "",
+    lng: s.unit_lng || "",
+  };
+}

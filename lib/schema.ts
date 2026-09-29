@@ -118,6 +118,17 @@ CREATE TABLE IF NOT EXISTS purchases (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS payments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  sale_id INTEGER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,
+  amount REAL NOT NULL DEFAULT 0,
+  mode TEXT NOT NULL DEFAULT 'cash' CHECK (mode IN ('cash','upi','bank','cheque')),
+  reference TEXT,
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS expenses (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   date TEXT NOT NULL,
@@ -150,11 +161,16 @@ CREATE INDEX IF NOT EXISTS idx_invtx_date ON inventory_tx(date);
 CREATE INDEX IF NOT EXISTS idx_invtx_product ON inventory_tx(product_id);
 CREATE INDEX IF NOT EXISTS idx_sale_items_sale ON sale_items(sale_id);
 CREATE INDEX IF NOT EXISTS idx_prodout_production ON production_output(production_id);
+CREATE INDEX IF NOT EXISTS idx_payments_sale ON payments(sale_id);
+CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(date);
 `;
 
 export const DEFAULT_SETTINGS: Record<string, string> = {
   unit_name: "Shree Stone Crusher",
   unit_location: "Industrial Area, Guwahati, Assam",
+  unit_address: "Plot 14, Industrial Area, Guwahati, Assam 781026",
+  unit_gstin: "18ABCDE1234F1Z5",
+  unit_phone: "+91 98640 12345",
   unit_lat: "26.1445",
   unit_lng: "91.7362",
   currency: "INR",

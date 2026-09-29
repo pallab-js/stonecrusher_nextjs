@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import type { ReportData } from "@/lib/repo/reports";
+import type { AgeingReport, ReportData } from "@/lib/repo/reports";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { humanize, inr, monthLabel, tonnes } from "@/lib/format";
 import { ChartCard } from "@/components/charts/chart-card";
@@ -70,9 +70,11 @@ function Section({
 
 export function ReportsView({
   data,
+  ageing,
   period,
 }: {
   data: ReportData;
+  ageing: AgeingReport;
   period: string;
 }) {
   const router = useRouter();
@@ -134,6 +136,100 @@ export function ReportsView({
           </div>
         ))}
       </div>
+
+
+      <Section
+        title="Receivables ageing"
+        subtitle={`${inr(ageing.total)} outstanding across ${ageing.rows.length} open invoice${
+          ageing.rows.length === 1 ? "" : "s"
+        } · ${inr(ageing.overdue)} overdue beyond 15 days`}
+        action={
+          <ExportBtn
+            label="CSV"
+            onClick={() =>
+              downloadCsv(
+                "stoneops-ageing.csv",
+                ["Customer", "Invoices", "0-15", "16-30", "31-60", "61-90", "90+", "Total"],
+                ageing.customers.map((c) => [
+                  c.customer_name,
+                  c.invoices,
+                  c.buckets.current,
+                  c.buckets.d16_30,
+                  c.buckets.d31_60,
+                  c.buckets.d61_90,
+                  c.buckets.d90,
+                  c.total,
+                ])
+              )
+            }
+          />
+        }
+      >
+        {ageing.rows.length === 0 ? (
+          <p className="rounded-lg bg-green/10 px-3.5 py-4 text-center text-sm font-semibold text-green">
+            Nothing outstanding — every invoice is fully paid.
+          </p>
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              {ageing.buckets.map((b) => (
+                <div
+                  key={b.key}
+                  className={cn(
+                    "rounded-lg px-3 py-2.5 ring-1",
+                    b.key === "current"
+                      ? "bg-canvas/60 ring-white/10"
+                      : b.total > 0
+                        ? "bg-destructive/5 ring-destructive/25"
+                        : "bg-canvas/40 ring-white/5"
+                  )}
+                >
+                  <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                    {b.label}
+                  </p>
+                  <p className={cn("stat-number mt-1 text-lg", b.total > 0 ? "text-white" : "text-muted-foreground/60")}>
+                    {inr(b.total)}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {b.count} invoice{b.count === 1 ? "" : "s"}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 rounded-lg bg-canvas/50 ring-1 ring-white/5">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="text-xs tracking-widest text-muted-foreground uppercase">Customer</TableHead>
+                    <TableHead className="text-right">Inv.</TableHead>
+                    {ageing.buckets.map((b) => (
+                      <TableHead key={b.key} className="text-right text-[11px]">
+                        {b.short}
+                      </TableHead>
+                    ))}
+                    <TableHead className="text-right">Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {ageing.customers.slice(0, 20).map((c) => (
+                    <TableRow key={`${c.customer_id ?? "none"}-${c.customer_name}`}>
+                      <TableCell className="text-white">{c.customer_name}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{c.invoices}</TableCell>
+                      {ageing.buckets.map((b) => (
+                        <TableCell key={b.key} className="text-right text-muted-foreground">
+                          {c.buckets[b.key] > 0 ? inr(c.buckets[b.key]) : "—"}
+                        </TableCell>
+                      ))}
+                      <TableCell className="text-right font-semibold text-white">{inr(c.total)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
+        )}
+      </Section>
 
       <Section
         title="Month-wise performance"

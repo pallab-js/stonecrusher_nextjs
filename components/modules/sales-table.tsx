@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, ReceiptText, Trash2, Pencil } from "lucide-react";
+import { Plus, Printer, ReceiptText, Trash2, Pencil, IndianRupee } from "lucide-react";
+import Link from "next/link";
 import type { ProductRow, CustomerRow } from "@/lib/repo/masters";
-import type { SaleRow } from "@/lib/repo/operations";
+import type { PaymentRow, SaleRow } from "@/lib/repo/operations";
 import { saveSaleAction, deleteSaleAction } from "@/actions/sales";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import { SearchBox } from "@/components/shared/search-box";
 import { EmptyState } from "@/components/shared/empty-state";
 import { DateField, NumberField, SelectField, TextAreaField, TextField } from "@/components/shared/fields";
 import { fmtDate, inr, today, tonnes } from "@/lib/format";
+import { PaymentDialog } from "@/components/modules/payment-dialog";
 import { cn } from "@/lib/utils";
 
 interface ItemDraft {
@@ -34,15 +36,18 @@ export function SalesTable({
   rows,
   products,
   customers,
+  payments,
 }: {
   rows: SaleRow[];
   products: ProductRow[];
   customers: CustomerRow[];
+  payments: PaymentRow[];
 }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [editing, setEditing] = useState<SaleRow | null>(null);
   const [open, setOpen] = useState(false);
+  const [paying, setPaying] = useState<SaleRow | null>(null);
 
   const filtered = rows.filter((r) => {
     const q = query.toLowerCase();
@@ -137,10 +142,27 @@ export function SalesTable({
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
+                      <button
+                        type="button"
+                        aria-label={`Payments for ${r.invoice_no}`}
+                        onClick={() => setPaying(r)}
+                        className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-white"
+                      >
+                        <IndianRupee className="size-3.5" />
+                      </button>
+                      <Link
+                        href={`/sales/print/${r.id}`}
+                        target="_blank"
+                        aria-label={`Print invoice ${r.invoice_no}`}
+                        className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-white"
+                      >
+                        <Printer className="size-3.5" />
+                      </Link>
                       <Button
                         variant="ghost"
                         size="icon"
                         className="size-8 text-muted-foreground hover:text-white"
+                        aria-label={`Edit ${r.invoice_no}`}
                         onClick={() => {
                           setEditing(r);
                           setOpen(true);
@@ -171,6 +193,15 @@ export function SalesTable({
           </Table>
         </div>
       )}
+
+      <PaymentDialog
+        sale={paying}
+        receipts={paying ? payments.filter((p) => p.sale_id === paying.id) : []}
+        open={paying != null}
+        onOpenChange={(o) => {
+          if (!o) setPaying(null);
+        }}
+      />
     </>
   );
 }
