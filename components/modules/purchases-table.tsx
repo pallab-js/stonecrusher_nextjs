@@ -196,7 +196,7 @@ export function PurchasesTable({
                         onConfirm={async () => {
                           const fd = new FormData();
                           fd.set("id", String(r.id));
-                          await deletePurchaseAction(fd);
+                          return deletePurchaseAction(fd);
                         }}
                       />
                     </div>

@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS production (
   shift TEXT NOT NULL CHECK (shift IN ('morning','evening','night')),
   line TEXT NOT NULL DEFAULT 'Line 1',
   raw_consumed REAL NOT NULL DEFAULT 0,
+  raw_product_id INTEGER REFERENCES products(id),
   run_hours REAL NOT NULL DEFAULT 0,
   down_hours REAL NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'running' CHECK (status IN ('running','stopped','maintenance')),
@@ -191,6 +192,13 @@ CREATE TABLE IF NOT EXISTS inventory_tx (
   ref_id INTEGER,
   notes TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS login_attempts (
+  username TEXT PRIMARY KEY,
+  fails INTEGER NOT NULL DEFAULT 0,
+  locked_until TEXT,
+  last_attempt TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 `;

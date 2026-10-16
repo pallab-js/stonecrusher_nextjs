@@ -167,7 +167,7 @@ export function CustomersTable({
                         onConfirm={async () => {
                           const fd = new FormData();
                           fd.set("id", String(r.id));
-                          await deleteCustomerAction(fd);
+                          return deleteCustomerAction(fd);
                         }}
                       />
                     </div>

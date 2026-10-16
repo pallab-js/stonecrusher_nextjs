@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { allocateDocNo } from "@/lib/repo/operations";
 
 /* ── Types ─────────────────────────────────────────────── */
 
@@ -150,19 +151,21 @@ export function recomputeOrderStatus(orderId: number): void {
 export function saveOrder(
   id: number | null,
   input: OrderInput,
-  orderNo: string
-): number {
+  orderNo?: string
+): { id: number; order_no: string } {
   const db = getDb();
   const run = db.transaction(() => {
     let orderId: number;
+    let docNo = orderNo || "";
     if (id == null) {
+      if (!docNo) docNo = allocateDocNo(db, "order_prefix", "next_order_no", "LPO");
       const info = db
         .prepare(
           `INSERT INTO orders (order_no, date, customer_id, delivery_date, status, notes)
            VALUES (?, ?, ?, ?, ?, ?)`
         )
         .run(
-          orderNo,
+          docNo,
           input.date,
           input.customer_id,
           input.delivery_date || null,
@@ -172,6 +175,11 @@ export function saveOrder(
       orderId = Number(info.lastInsertRowid);
     } else {
       orderId = id;
+      const existing = db.prepare("SELECT order_no FROM orders WHERE id = ?").get(id) as
+        | { order_no: string }
+        | undefined;
+      if (!existing) throw new Error("Order not found");
+      docNo = existing.order_no;
       db.prepare(
         `UPDATE orders SET date = ?, customer_id = ?, delivery_date = ?, status = ?, notes = ?
          WHERE id = ?`
@@ -195,9 +203,9 @@ export function saveOrder(
       }
     }
     recomputeOrderStatus(orderId);
-    return orderId;
+    return { id: orderId, order_no: docNo };
   });
-  return run() as number;
+  return run() as { id: number; order_no: string };
 }
 
 export function deleteOrder(id: number): boolean {

@@ -11,6 +11,7 @@ import { hashPin, verifyPin, type Role } from "@/lib/auth";
 import { getSession } from "@/lib/session";
 import { clearAllData, loadDemoData } from "@/lib/seed";
 import { importBackup } from "@/lib/backup";
+import { isValidGstin, isValidPhone } from "@/lib/validate";
 
 /* ── Demo data ─────────────────────────────────────────── */
 
@@ -37,11 +38,15 @@ export async function saveUnitSettingsAction(
   await requireRole("admin");
   const name = s(formData, "unit_name");
   if (name.length < 2) return err("Unit name is required");
+  const gstin = s(formData, "unit_gstin");
+  const phone = s(formData, "unit_phone");
+  if (!isValidGstin(gstin)) return err("Enter a valid 15-character GSTIN");
+  if (!isValidPhone(phone)) return err("Enter a valid phone number");
   setSetting("unit_name", name);
   setSetting("unit_location", s(formData, "unit_location"));
   setSetting("unit_address", s(formData, "unit_address"));
-  setSetting("unit_gstin", s(formData, "unit_gstin"));
-  setSetting("unit_phone", s(formData, "unit_phone"));
+  setSetting("unit_gstin", gstin);
+  setSetting("unit_phone", phone);
   setSetting("unit_lat", s(formData, "unit_lat"));
   setSetting("unit_lng", s(formData, "unit_lng"));
   setSetting("invoice_prefix", s(formData, "invoice_prefix") || "INV");
@@ -126,12 +131,12 @@ export async function saveUserAction(
   return ok(id == null ? "User created" : "User updated");
 }
 
-export async function deleteUserAction(formData: FormData): Promise<void> {
+export async function deleteUserAction(formData: FormData): Promise<FormState> {
   await requireRole("admin");
   const id = n(formData, "id") || null;
-  if (id == null) return;
+  if (id == null) return err("User not found");
   const session = await getSession();
-  if (session?.uid === id) return;
+  if (session?.uid === id) return err("You cannot delete the account you are signed in with");
 
   const db = getDb();
   const admins = db
@@ -140,10 +145,14 @@ export async function deleteUserAction(formData: FormData): Promise<void> {
   const target = db.prepare("SELECT role FROM users WHERE id = ?").get(id) as
     | { role: Role }
     | undefined;
-  if (target?.role === "admin" && admins.c <= 1) return;
+  if (!target) return err("User not found");
+  if (target.role === "admin" && admins.c <= 1) {
+    return err("Cannot delete the last admin — create another admin first");
+  }
 
   db.prepare("DELETE FROM users WHERE id = ?").run(id);
   revalidatePath("/settings");
+  return ok("User deleted");
 }
 
 /* ── Backup restore ────────────────────────────────────── */

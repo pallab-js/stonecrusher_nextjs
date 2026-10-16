@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import type { FormState } from "@/lib/form-state";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,7 +26,7 @@ export function ConfirmButton({
   disabled,
   triggerClassName,
 }: {
-  onConfirm: () => Promise<void> | void;
+  onConfirm: () => Promise<FormState | void> | FormState | void;
   title: string;
   description?: string;
   confirmLabel?: string;
@@ -39,7 +41,11 @@ export function ConfirmButton({
   const handle = async () => {
     setPending(true);
     try {
-      await onConfirm();
+      const result = await onConfirm();
+      // Surface whatever the action reported: a blocked delete (e.g. "last admin")
+      // returns an error so the user isn't left staring at a no-op.
+      if (result?.error) toast.error(result.error);
+      else if (result?.success) toast.success(result.success);
       setOpen(false);
     } finally {
       setPending(false);

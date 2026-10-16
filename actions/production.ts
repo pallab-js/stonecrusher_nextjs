@@ -12,6 +12,7 @@ const productionSchema = z.object({
   shift: z.enum(["morning", "evening", "night"]),
   line: z.string().trim().min(1),
   raw_consumed: z.number().min(0),
+  raw_product_id: z.number().nullable(),
   run_hours: z.number().min(0).max(24),
   down_hours: z.number().min(0).max(24),
   status: z.enum(["running", "stopped", "maintenance"]),
@@ -28,6 +29,7 @@ export async function saveProductionAction(
     shift: s(formData, "shift"),
     line: s(formData, "line") || "Line 1",
     raw_consumed: n(formData, "raw_consumed"),
+    raw_product_id: optN(formData, "raw_product_id"),
     run_hours: n(formData, "run_hours"),
     down_hours: n(formData, "down_hours"),
     status: s(formData, "status") || "running",
@@ -49,14 +51,15 @@ export async function saveProductionAction(
   return ok(id == null ? "Shift entry saved" : "Shift entry updated");
 }
 
-export async function deleteProductionAction(formData: FormData): Promise<void> {
+export async function deleteProductionAction(formData: FormData): Promise<FormState> {
   await requireRole("operator");
   const id = optN(formData, "id");
-  if (id == null) return;
+  if (id == null) return err("Shift entry not found");
   deleteProduction(id);
   revalidatePath("/production");
   revalidatePath("/inventory");
   revalidatePath("/dashboard");
+  return ok("Shift entry deleted — stock movements reversed");
 }
 
 const manualTxSchema = z.object({
@@ -86,10 +89,11 @@ export async function saveManualTxAction(
   return ok("Stock adjusted");
 }
 
-export async function deleteManualTxAction(formData: FormData): Promise<void> {
+export async function deleteManualTxAction(formData: FormData): Promise<FormState> {
   await requireRole("operator");
   const id = optN(formData, "id");
-  if (id == null) return;
+  if (id == null) return err("Adjustment not found");
   deleteManualTx(id);
   revalidatePath("/inventory");
+  return ok("Stock adjustment removed");
 }

@@ -26,12 +26,22 @@ npm run lint       # eslint
 npm run typecheck  # tsc --noEmit
 npm run build      # production build
 npm run start      # serve the production build
+npm run test:unit  # fast unit tests for the money/stock/validation helpers
 npm run test:e2e   # Playwright end-to-end tests (starts its own dev server)
 ```
 
 ## Tests
 
-Playwright drives the real app in Chromium against an isolated database
+**Unit tests** cover the pure money/stock/validation helpers in `lib/money.ts`
+and `lib/validate.ts` — integer-paise arithmetic (no float drift), payment
+status, stock-availability, GSTIN/phone formats — via Node's built-in test
+runner:
+
+```bash
+npm run test:unit
+```
+
+**End-to-end tests** drive the real app in Chromium against an isolated database
 (`STONEOPS_DATA_DIR=data/e2e`, wiped before every run):
 
 ```bash
@@ -41,8 +51,9 @@ npm run test:e2e
 
 Coverage: PIN login / wrong PIN / lock screen, role gating per role,
 customer CRUD + validation, demo seed → dashboard charts → reports → maps,
-and data clearing. Every push to `main` runs lint, typecheck, build and the
-e2e suite via `.github/workflows/ci.yml`.
+goods-receipt/LPO flows, and data clearing. Every push to `main` runs lint,
+typecheck, unit tests, build and the e2e suite via `.github/workflows/ci.yml`
+(with `concurrency` so stacked pushes cancel superseded runs).
 
 ## Signing in
 
@@ -59,9 +70,9 @@ Sign in by picking a user on the login screen and entering their 4-digit PIN. Us
 ## Modules
 
 - **Dashboard** — KPI cards (today's output, MTD tonnage, stock on ground, revenue, receivables, downtime) plus production trend, stock mix, sales vs purchases and expense mix charts.
-- **Production** — daily shift log: raw stone consumed, output by product, downtime, operator notes.
+- **Production** — daily shift log: raw stone consumed (against a chosen raw product), output by product, downtime, operator notes.
 - **Inventory** — stock on ground by product with running balances, additions and consumption.
-- **Sales & Dispatch** — multi-line invoices with vehicle/transporter details, tax, amount received and payment status; dispatches decrement stock automatically.
+- **Sales & Dispatch** — multi-line invoices with vehicle/transporter details, tax, amount received and payment status; dispatches decrement stock automatically and are blocked when they would drive stock negative.
 - **Purchases** — raw stone, spares, fuel and other bills with payment status.
 - **Expenses** — day-to-day site expenses by category.
 - **Customers / Suppliers** — masters with contact details and credit terms.
@@ -80,6 +91,19 @@ Sign in by picking a user on the login screen and entering their 4-digit PIN. Us
 - `lib/auth.ts` + `lib/session.ts` + `proxy.ts` route gating per role
 - `components/modules/*` page bodies; `components/shared/*` dialog/table/form primitives
 - Design tokens and the full UI kit live in `app/globals.css` (spec: `DESIGN.md`)
+
+### Data integrity & security
+
+- **Atomic numbering** — invoice / LPO / GRN numbers are allocated and the
+  counter bumped inside the same transaction as the insert, so concurrent or
+  double-submitted saves can never collide on a `UNIQUE` number.
+- **Integer-paise money** — all amount arithmetic (line totals, invoice totals,
+  running paid amounts, statement balances) is done in integer paise and
+  rounded once, so repeated additions never accumulate float drift.
+- **Safe restore** — JSON backup import validates every table/column against the
+  live schema *before* clearing data, and runs in a single transaction.
+- **Auth hardening** — the JWT session secret fails closed if it can't be
+  established; PIN logins lock out per user after repeated failures.
 
 ## License
 

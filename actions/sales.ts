@@ -6,14 +6,13 @@ import { requireRole } from "./guard";
 import { err, ok, type FormState } from "@/lib/form-state";
 import { n, nAll, opt, optN, s } from "@/lib/form-helpers";
 import {
+  checkStockAvailability,
   deletePayment,
   deleteSale,
   getBalance,
-  nextInvoiceNo,
   recordPayment,
   saveSale,
 } from "@/lib/repo/operations";
-import { getSettings, setSetting } from "@/lib/repo/masters";
 import { inr } from "@/lib/format";
 
 const saleSchema = z.object({
@@ -62,17 +61,27 @@ export async function saveSaleAction(
   if (items.length === 0) return err("Add at least one line item");
 
   const id = optN(formData, "id");
-  let invoiceNo = parsed.data.invoice_no;
-  if (id == null) {
-    const settings = getSettings();
-    const prefix = settings.invoice_prefix || "INV";
-    const next = Number(settings.next_invoice_no || "1");
-    invoiceNo = invoiceNo || nextInvoiceNo(prefix, next);
-    saveSale(null, { ...parsed.data, invoice_no: invoiceNo, items });
-    setSetting("next_invoice_no", String(next + 1));
-  } else {
-    saveSale(id, { ...parsed.data, invoice_no: invoiceNo || "INV-EDIT", items });
+
+  // Block dispatching more than is on the ground. On edit, the invoice's own
+  // existing stock-out rows are excluded so re-saving the same lines is allowed.
+  const shortfalls = checkStockAvailability(items, id);
+  if (shortfalls.length > 0) {
+    const first = shortfalls[0];
+    const extra = shortfalls.length > 1 ? ` (+${shortfalls.length - 1} more)` : "";
+    return err(
+      `Not enough stock for ${first.name}: ${first.requested} requested, ${first.available} available${extra}`
+    );
   }
+
+  // Numbering is allocated atomically inside saveSale's transaction (create path);
+  // on edit the stored invoice_no is preserved. An explicit invoice_no is only
+  // honoured on create (e.g. manual override / import).
+  const explicitNo = id == null ? parsed.data.invoice_no : undefined;
+  const { invoice_no: invoiceNo } = saveSale(id, {
+    ...parsed.data,
+    invoice_no: explicitNo,
+    items,
+  });
 
   revalidatePath("/sales");
   revalidatePath("/inventory");
@@ -81,15 +90,16 @@ export async function saveSaleAction(
   return ok(id == null ? `Invoice ${invoiceNo} created` : "Invoice updated");
 }
 
-export async function deleteSaleAction(formData: FormData): Promise<void> {
+export async function deleteSaleAction(formData: FormData): Promise<FormState> {
   await requireRole("admin");
   const id = optN(formData, "id");
-  if (id == null) return;
+  if (id == null) return err("Invoice not found");
   deleteSale(id);
   revalidatePath("/sales");
   revalidatePath("/inventory");
   revalidatePath("/dashboard");
   revalidatePath("/reports");
+  return ok("Invoice deleted — stock movements reversed");
 }
 
 /* ── Payments ──────────────────────────────────────────── */
@@ -131,12 +141,13 @@ export async function recordPaymentAction(
   return ok(`Payment of ${inr(parsed.data.amount)} recorded — receipt #${paymentId}`);
 }
 
-export async function deletePaymentAction(formData: FormData): Promise<void> {
+export async function deletePaymentAction(formData: FormData): Promise<FormState> {
   await requireRole("accountant");
   const id = optN(formData, "id");
-  if (id == null) return;
+  if (id == null) return err("Receipt not found");
   deletePayment(id);
   revalidatePath("/sales");
   revalidatePath("/dashboard");
   revalidatePath("/reports");
+  return ok("Receipt deleted — invoice balance updated");
 }

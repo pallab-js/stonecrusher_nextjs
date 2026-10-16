@@ -197,7 +197,7 @@ export function loadDemoData(): SeedResult {
       if (dow === 1 || dow === 3 || dow === 5) {
         const qty = Math.round((480 + rnd() * 600) * 10) / 10;
         const grnNo = nextGrnNo("GRN", grnSeq++);
-        const grnId = saveGrn(
+        const { id: grnId } = saveGrn(
           null,
           {
             date,
@@ -351,7 +351,7 @@ export function loadDemoData(): SeedResult {
         const total = subtotal + tax;
         const paidRoll = rnd();
         const paid = paidRoll > 0.6 ? total : paidRoll > 0.3 ? total * rnd() : 0;
-        const saleId = saveSale(null, {
+        const { id: saleId } = saveSale(null, {
           invoice_no: invoiceNo,
           date,
           customer_id: customer,
@@ -406,7 +406,7 @@ export function loadDemoData(): SeedResult {
         .all(sale.id) as { product_id: number; qty: number; rate: number }[];
       if (saleItems.length === 0) continue;
       const stretch = orderSeq % 3 === 0 ? 1 : 1.4 + rnd() * 0.6;
-      const orderId = saveOrder(
+      const { id: orderId } = saveOrder(
         null,
         {
           date: sale.date,

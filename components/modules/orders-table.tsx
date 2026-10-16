@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ClipboardList, Pencil, Plus, Printer, Trash2, Zap } from "lucide-react";
-import { toast } from "sonner";
 import type { CustomerRow, ProductRow } from "@/lib/repo/masters";
 import type { OrderRow } from "@/lib/repo/orders";
 import { saveOrderAction, deleteOrderAction } from "@/actions/orders";
@@ -196,9 +195,7 @@ export function OrdersTable({
                           onConfirm={async () => {
                             const fd = new FormData();
                             fd.set("id", String(r.id));
-                            const res = await deleteOrderAction(fd);
-                            if (res?.error) toast.error(res.error);
-                            else if (res?.success) toast.success(res.success);
+                            return deleteOrderAction(fd);
                           }}
                         />
                       </div>

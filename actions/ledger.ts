@@ -79,16 +79,17 @@ export async function savePurchaseAction(
   return ok(message);
 }
 
-export async function deletePurchaseAction(formData: FormData): Promise<void> {
+export async function deletePurchaseAction(formData: FormData): Promise<FormState> {
   await requireRole("admin");
   const id = optN(formData, "id");
-  if (id == null) return;
+  if (id == null) return err("Purchase not found");
   deletePurchase(id);
   revalidatePath("/purchases");
   revalidatePath("/inventory");
   revalidatePath("/suppliers");
   revalidatePath("/dashboard");
   revalidatePath("/reports");
+  return ok("Purchase deleted");
 }
 
 /* ── Expenses ──────────────────────────────────────────── */
@@ -125,12 +126,13 @@ export async function saveExpenseAction(
   return ok(id == null ? "Expense added" : "Expense updated");
 }
 
-export async function deleteExpenseAction(formData: FormData): Promise<void> {
+export async function deleteExpenseAction(formData: FormData): Promise<FormState> {
   await requireRole("admin");
   const id = optN(formData, "id");
-  if (id == null) return;
+  if (id == null) return err("Expense not found");
   deleteExpense(id);
   revalidatePath("/expenses");
   revalidatePath("/dashboard");
   revalidatePath("/reports");
+  return ok("Expense deleted");
 }

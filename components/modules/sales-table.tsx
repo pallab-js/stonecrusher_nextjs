@@ -198,7 +198,7 @@ export function SalesTable({
                         onConfirm={async () => {
                           const fd = new FormData();
                           fd.set("id", String(r.id));
-                          await deleteSaleAction(fd);
+                          return deleteSaleAction(fd);
                         }}
                       />
                     </div>

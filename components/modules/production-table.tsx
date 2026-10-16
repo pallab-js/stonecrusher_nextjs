@@ -223,7 +223,7 @@ export function ProductionTable({ rows, products }: { rows: ProductionRow[]; pro
                         onConfirm={async () => {
                           const fd = new FormData();
                           fd.set("id", String(r.id));
-                          await deleteProductionAction(fd);
+                          return deleteProductionAction(fd);
                         }}
                       />
                     </div>
@@ -249,6 +249,8 @@ function ShiftFields({ editing, products }: { editing: ProductionRow | null; pro
       : [{ key: keyCounter++, product_id: "", qty: "" }]
   );
 
+  const rawProducts = products.filter((p) => p.kind === "raw");
+
   const setOutput = (key: number, patch: Partial<OutputDraft>) =>
     setOutputs((list) => list.map((o) => (o.key === key ? { ...o, ...patch } : o)));
 
@@ -265,6 +267,17 @@ function ShiftFields({ editing, products }: { editing: ProductionRow | null; pro
           value={editing?.status ?? "running"}
           options={STATUS_OPTIONS}
         />
+        {rawProducts.length > 1 && (
+          <SelectField
+            label="Raw product consumed"
+            name="raw_product_id"
+            value={editing?.raw_product_id ? String(editing.raw_product_id) : String(rawProducts[0]?.id ?? "")}
+            options={rawProducts.map((p) => ({ value: String(p.id), label: p.name }))}
+          />
+        )}
+        {rawProducts.length <= 1 && (
+          <input type="hidden" name="raw_product_id" value={rawProducts[0]?.id ?? ""} />
+        )}
         <NumberField
           label="Raw stone consumed (t)"
           name="raw_consumed"

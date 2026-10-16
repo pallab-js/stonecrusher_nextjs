@@ -207,7 +207,7 @@ export function ExpensesTable({ rows }: { rows: ExpenseRow[] }) {
                         onConfirm={async () => {
                           const fd = new FormData();
                           fd.set("id", String(r.id));
-                          await deleteExpenseAction(fd);
+                          return deleteExpenseAction(fd);
                         }}
                       />
                     </div>

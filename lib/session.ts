@@ -11,17 +11,31 @@ const SESSION_DAYS = 7;
 
 const SECRET_FILE = path.join(dataDir(), "session-secret");
 
+let cachedSecret: Uint8Array | null = null;
+
 function getSecret(): Uint8Array {
+  if (cachedSecret) return cachedSecret;
   try {
     if (fs.existsSync(SECRET_FILE)) {
-      return new TextEncoder().encode(fs.readFileSync(SECRET_FILE, "utf8").trim());
+      const existing = fs.readFileSync(SECRET_FILE, "utf8").trim();
+      if (existing.length < 32) {
+        throw new Error("Session secret file is too short to be trustworthy");
+      }
+      cachedSecret = new TextEncoder().encode(existing);
+      return cachedSecret;
     }
     fs.mkdirSync(path.dirname(SECRET_FILE), { recursive: true });
     const secret = crypto.randomUUID() + crypto.randomUUID();
     fs.writeFileSync(SECRET_FILE, secret, { mode: 0o600 });
-    return new TextEncoder().encode(secret);
-  } catch {
-    return new TextEncoder().encode("stoneops-local-fallback-secret");
+    cachedSecret = new TextEncoder().encode(secret);
+    return cachedSecret;
+  } catch (e) {
+    // Fail closed: never sign or verify sessions with a guessable key. A missing
+    // or unreadable secret is an environment problem the operator must fix.
+    throw new Error(
+      `Cannot establish a session secret at ${SECRET_FILE}. ` +
+        `Check that the data directory is writable. (${e instanceof Error ? e.message : String(e)})`
+    );
   }
 }
 

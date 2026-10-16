@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { allocateDocNo } from "@/lib/repo/operations";
 
 /* ── Types ─────────────────────────────────────────────── */
 
@@ -106,18 +107,24 @@ function writeGrnStock(grnId: number, input: GrnInput, grnNo: string) {
   }
 }
 
-export function saveGrn(id: number | null, input: GrnInput, grnNo: string): number {
+export function saveGrn(
+  id: number | null,
+  input: GrnInput,
+  grnNo?: string
+): { id: number; grn_no: string } {
   const db = getDb();
   const run = db.transaction(() => {
     let grnId: number;
+    let docNo = grnNo || "";
     if (id == null) {
+      if (!docNo) docNo = allocateDocNo(db, "grn_prefix", "next_grn_no", "GRN");
       const info = db
         .prepare(
           `INSERT INTO grns (grn_no, date, supplier_id, vehicle_no, challan_no, status, notes)
            VALUES (?, ?, ?, ?, ?, 'received', ?)`
         )
         .run(
-          grnNo,
+          docNo,
           input.date,
           input.supplier_id,
           input.vehicle_no || null,
@@ -143,7 +150,7 @@ export function saveGrn(id: number | null, input: GrnInput, grnNo: string): numb
         input.notes ?? null,
         id
       );
-      grnNo = existing.grn_no;
+      docNo = existing.grn_no;
       db.prepare("DELETE FROM grn_items WHERE grn_id = ?").run(grnId);
     }
 
@@ -155,10 +162,10 @@ export function saveGrn(id: number | null, input: GrnInput, grnNo: string): numb
         insertItem.run(grnId, item.product_id, r2(item.qty), r2(item.rate));
       }
     }
-    writeGrnStock(grnId, input, grnNo);
-    return grnId;
+    writeGrnStock(grnId, input, docNo);
+    return { id: grnId, grn_no: docNo };
   });
-  return run() as number;
+  return run() as { id: number; grn_no: string };
 }
 
 export function deleteGrn(id: number): boolean {

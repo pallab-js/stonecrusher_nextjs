@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { fromPaise, toPaise } from "@/lib/money";
 
 export interface ReportSummary {
   production: number;
@@ -226,27 +227,29 @@ export function getAgeing(): AgeingReport {
       byCustomer.set(key, entry);
     }
     entry.invoices += 1;
-    entry.total = Math.round((entry.total + r.balance) * 100) / 100;
+    entry.total = fromPaise(toPaise(entry.total) + toPaise(r.balance));
     entry.oldest_days = Math.max(entry.oldest_days, r.days);
-    entry.buckets[r.bucket] = Math.round((entry.buckets[r.bucket] + r.balance) * 100) / 100;
+    entry.buckets[r.bucket] = fromPaise(toPaise(entry.buckets[r.bucket]) + toPaise(r.balance));
   }
 
   const buckets = AGEING_BUCKETS.map((b) => {
     const matching = withBucket.filter((r) => r.bucket === b.key);
     return {
       ...b,
-      total: Math.round(matching.reduce((s, r) => s + r.balance, 0) * 100) / 100,
+      total: fromPaise(matching.reduce((s, r) => s + toPaise(r.balance), 0)),
       count: matching.length,
     };
   });
 
-  const total = Math.round(withBucket.reduce((s, r) => s + r.balance, 0) * 100) / 100;
+  const total = fromPaise(withBucket.reduce((s, r) => s + toPaise(r.balance), 0));
 
   return {
     rows: withBucket,
     customers: [...byCustomer.values()].sort((a, b) => b.total - a.total),
     buckets,
     total,
-    overdue: withBucket.filter((r) => r.days > 15).reduce((s, r) => s + r.balance, 0),
+    overdue: fromPaise(
+      withBucket.filter((r) => r.days > 15).reduce((s, r) => s + toPaise(r.balance), 0)
+    ),
   };
 }

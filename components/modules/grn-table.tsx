@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Pencil, Plus, ReceiptText, Trash2, Zap } from "lucide-react";
-import { toast } from "sonner";
 import type { SupplierRow, ProductRow } from "@/lib/repo/masters";
 import type { GrnRow } from "@/lib/repo/grns";
 import { saveGrnAction, deleteGrnAction } from "@/actions/orders";
@@ -181,9 +180,7 @@ export function GrnTable({
                         onConfirm={async () => {
                           const fd = new FormData();
                           fd.set("id", String(r.id));
-                          const res = await deleteGrnAction(fd);
-                          if (res?.error) toast.error(res.error);
-                          else if (res?.success) toast.success(res.success);
+                          return deleteGrnAction(fd);
                         }}
                       />
                     </div>

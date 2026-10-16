@@ -1,5 +1,8 @@
 import { getDb } from "@/lib/db";
 import { recomputeOrderStatus } from "@/lib/repo/orders";
+import { r2, paymentStatus, formatDocNo, isShortStock, sumMoney, lineAmount, invoiceTotal, addMoney, subMoneyClamped } from "@/lib/money";
+
+export { formatDocNo };
 
 /* ── Types ─────────────────────────────────────────────── */
 
@@ -14,6 +17,7 @@ export interface ProductionRow {
   shift: "morning" | "evening" | "night";
   line: string;
   raw_consumed: number;
+  raw_product_id: number | null;
   run_hours: number;
   down_hours: number;
   status: "running" | "stopped" | "maintenance";
@@ -90,12 +94,31 @@ export interface TxRow {
   notes: string | null;
 }
 
-const r2 = (n: number) => Math.round(n * 100) / 100;
+/* ── Atomic document numbering ─────────────────────────── */
 
-function paymentStatus(total: number, paid: number): "unpaid" | "partial" | "paid" {
-  if (paid <= 0) return "unpaid";
-  if (paid + 0.01 >= total) return "paid";
-  return "partial";
+/**
+ * Allocate the next document number *inside the active transaction*, reading and
+ * bumping the counter atomically so concurrent inserts (double-submit, two tabs)
+ * can never read the same value. Must be called from within a `db.transaction`.
+ */
+export function allocateDocNo(
+  db: ReturnType<typeof getDb>,
+  prefixKey: string,
+  counterKey: string,
+  defaultPrefix: string
+): string {
+  const prefixRow = db.prepare("SELECT value FROM settings WHERE key = ?").get(prefixKey) as
+    | { value: string }
+    | undefined;
+  const counterRow = db.prepare("SELECT value FROM settings WHERE key = ?").get(counterKey) as
+    | { value: string }
+    | undefined;
+  const prefix = prefixRow?.value || defaultPrefix;
+  const next = Number(counterRow?.value || "1") || 1;
+  db.prepare(
+    "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+  ).run(counterKey, String(next + 1));
+  return formatDocNo(prefix, next);
 }
 
 /* ── Production ────────────────────────────────────────── */
@@ -132,6 +155,7 @@ export interface ProductionInput {
   shift: string;
   line: string;
   raw_consumed: number;
+  raw_product_id?: number | null;
   run_hours: number;
   down_hours: number;
   status: string;
@@ -157,13 +181,17 @@ function writeProductionStock(productionId: number, input: ProductionInput) {
   }
 
   if (input.raw_consumed > 0) {
-    const raw = db
-      .prepare("SELECT id FROM products WHERE kind = 'raw' AND active = 1 ORDER BY id LIMIT 1")
-      .get() as { id: number } | undefined;
-    if (raw) {
+    let rawId = input.raw_product_id ?? null;
+    if (rawId == null) {
+      const raw = db
+        .prepare("SELECT id FROM products WHERE kind = 'raw' AND active = 1 ORDER BY id LIMIT 1")
+        .get() as { id: number } | undefined;
+      rawId = raw?.id ?? null;
+    }
+    if (rawId != null) {
       insertTx.run(
         input.date,
-        raw.id,
+        rawId,
         "out",
         r2(input.raw_consumed),
         productionId,
@@ -180,14 +208,15 @@ export function saveProduction(id: number | null, input: ProductionInput): numbe
     if (id == null) {
       const info = db
         .prepare(
-          `INSERT INTO production (date, shift, line, raw_consumed, run_hours, down_hours, status, notes)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO production (date, shift, line, raw_consumed, raw_product_id, run_hours, down_hours, status, notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           input.date,
           input.shift,
           input.line,
           r2(input.raw_consumed),
+          input.raw_product_id ?? null,
           input.run_hours,
           input.down_hours,
           input.status,
@@ -197,13 +226,14 @@ export function saveProduction(id: number | null, input: ProductionInput): numbe
     } else {
       productionId = id;
       db.prepare(
-        `UPDATE production SET date = ?, shift = ?, line = ?, raw_consumed = ?, run_hours = ?,
+        `UPDATE production SET date = ?, shift = ?, line = ?, raw_consumed = ?, raw_product_id = ?, run_hours = ?,
          down_hours = ?, status = ?, notes = ? WHERE id = ?`
       ).run(
         input.date,
         input.shift,
         input.line,
         r2(input.raw_consumed),
+        input.raw_product_id ?? null,
         input.run_hours,
         input.down_hours,
         input.status,
@@ -259,7 +289,7 @@ export function listSales(limit = 500): SaleRow[] {
 }
 
 export interface SaleInput {
-  invoice_no: string;
+  invoice_no?: string;
   date: string;
   customer_id: number | null;
   vehicle_no?: string;
@@ -272,31 +302,41 @@ export interface SaleInput {
   items: SaleItemInput[];
 }
 
+/** @deprecated use formatDocNo; kept for callers/tests. */
 export function nextInvoiceNo(prefix: string, next: number): string {
-  return `${prefix}${String(next).padStart(4, "0")}`;
+  return formatDocNo(prefix, next);
 }
 
-export function saveSale(id: number | null, input: SaleInput): number {
+export function saveSale(
+  id: number | null,
+  input: SaleInput
+): { id: number; invoice_no: string } {
   const db = getDb();
   const run = db.transaction(() => {
     const items = input.items.filter((i) => i.product_id > 0 && i.qty > 0);
-    const subtotal = r2(items.reduce((s, i) => s + i.qty * i.rate, 0));
+    const subtotal = sumMoney(items.map((i) => lineAmount(i.qty, i.rate)));
     const tax = r2(input.tax);
     const discount = r2(input.discount);
-    const total = r2(subtotal - discount + tax);
-    const paid = r2(Math.min(input.paid_amount, total));
+    const total = invoiceTotal(subtotal, discount, tax);
+    const paid = Math.min(r2(input.paid_amount), total);
     const status = paymentStatus(total, paid);
 
     let saleId: number;
+    let invoiceNo = input.invoice_no;
     let previousOrderId: number | null = null;
     if (id == null) {
+      // Allocate the invoice number atomically inside this transaction unless the
+      // caller supplied an explicit one (e.g. restore/import).
+      if (!invoiceNo) {
+        invoiceNo = allocateDocNo(db, "invoice_prefix", "next_invoice_no", "INV");
+      }
       const info = db
         .prepare(
           `INSERT INTO sales (invoice_no, date, customer_id, vehicle_no, transporter, subtotal, discount, tax, total, paid_amount, status, order_id, notes)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
-          input.invoice_no,
+          invoiceNo,
           input.date,
           input.customer_id,
           input.vehicle_no || null,
@@ -313,15 +353,18 @@ export function saveSale(id: number | null, input: SaleInput): number {
       saleId = Number(info.lastInsertRowid);
     } else {
       saleId = id;
-      const previousOrder = db.prepare("SELECT order_id FROM sales WHERE id = ?").get(id) as
-        | { order_id: number | null }
+      // Never fabricate or overwrite the invoice number on edit: keep whatever
+      // is already stored for this sale.
+      const existing = db.prepare("SELECT invoice_no, order_id FROM sales WHERE id = ?").get(id) as
+        | { invoice_no: string; order_id: number | null }
         | undefined;
-      previousOrderId = previousOrder?.order_id ?? null;
+      if (!existing) throw new Error("Invoice not found");
+      invoiceNo = existing.invoice_no;
+      previousOrderId = existing.order_id ?? null;
       db.prepare(
-        `UPDATE sales SET invoice_no = ?, date = ?, customer_id = ?, vehicle_no = ?, transporter = ?,
+        `UPDATE sales SET date = ?, customer_id = ?, vehicle_no = ?, transporter = ?,
          subtotal = ?, discount = ?, tax = ?, total = ?, paid_amount = ?, status = ?, order_id = ?, notes = ? WHERE id = ?`
       ).run(
-        input.invoice_no,
         input.date,
         input.customer_id,
         input.vehicle_no || null,
@@ -348,16 +391,16 @@ export function saveSale(id: number | null, input: SaleInput): number {
        VALUES (?, ?, 'out', ?, 'sale', ?, ?)`
     );
     for (const item of items) {
-      const amount = r2(item.qty * item.rate);
+      const amount = lineAmount(item.qty, item.rate);
       insertItem.run(saleId, item.product_id, r2(item.qty), r2(item.rate), amount);
-      insertTx.run(input.date, item.product_id, r2(item.qty), saleId, `Invoice ${input.invoice_no}`);
+      insertTx.run(input.date, item.product_id, r2(item.qty), saleId, `Invoice ${invoiceNo}`);
     }
 
     if (input.order_id) recomputeOrderStatus(input.order_id);
     if (previousOrderId && previousOrderId !== input.order_id) recomputeOrderStatus(previousOrderId);
-    return saleId;
+    return { id: saleId, invoice_no: invoiceNo as string };
   });
-  return run() as number;
+  return run() as { id: number; invoice_no: string };
 }
 
 export function deleteSale(id: number): void {
@@ -410,7 +453,7 @@ export function savePurchase(id: number | null, input: PurchaseInput): number {
   const db = getDb();
   const run = db.transaction(() => {
     const amount = r2(input.amount);
-    const paid = r2(Math.min(input.paid_amount, amount));
+    const paid = Math.min(r2(input.paid_amount), amount);
     const status = paymentStatus(amount, paid);
 
     let purchaseId: number;
@@ -619,7 +662,7 @@ export function getBalance(saleId: number): number {
     | { total: number; paid_amount: number }
     | undefined;
   if (!sale) return 0;
-  return r2(Math.max(0, sale.total - sale.paid_amount));
+  return subMoneyClamped(sale.total, sale.paid_amount);
 }
 
 export function recordPayment(saleId: number, input: PaymentInput): number {
@@ -629,13 +672,13 @@ export function recordPayment(saleId: number, input: PaymentInput): number {
       | { total: number; paid_amount: number }
       | undefined;
     if (!sale) throw new Error("Invoice not found");
-    const amount = r2(Math.min(input.amount, Math.max(0, sale.total - sale.paid_amount)));
+    const amount = Math.min(r2(input.amount), subMoneyClamped(sale.total, sale.paid_amount));
     const info = db
       .prepare(
         "INSERT INTO payments (sale_id, date, amount, mode, reference, notes) VALUES (?, ?, ?, ?, ?, ?)"
       )
       .run(saleId, input.date, amount, input.mode, input.reference || null, input.notes || null);
-    const paid = r2(sale.paid_amount + amount);
+    const paid = addMoney(sale.paid_amount, amount);
     db.prepare("UPDATE sales SET paid_amount = ?, status = ? WHERE id = ?").run(
       paid,
       paymentStatus(sale.total, paid),
@@ -658,7 +701,7 @@ export function deletePayment(id: number): void {
       total: number;
       paid_amount: number;
     };
-    const paid = r2(Math.max(0, sale.paid_amount - payment.amount));
+    const paid = subMoneyClamped(sale.paid_amount, payment.amount);
     db.prepare("UPDATE sales SET paid_amount = ?, status = ? WHERE id = ?").run(
       paid,
       paymentStatus(sale.total, paid),
@@ -742,6 +785,73 @@ export interface LedgerDoc {
   rate: number;
   rows: LedgerEntry[];
   closing: number;
+}
+
+/* ── Stock availability ────────────────────────────────── */
+
+/**
+ * On-ground stock for a product = opening_stock + Σ(in) − Σ(out) across all
+ * inventory transactions. `excludeSaleId` drops that sale's own 'out' rows so an
+ * edit is validated against stock *excluding* what the invoice currently holds.
+ */
+export function availableStock(productId: number, excludeSaleId?: number | null): number {
+  const db = getDb();
+  const product = db
+    .prepare("SELECT opening_stock FROM products WHERE id = ?")
+    .get(productId) as { opening_stock: number } | undefined;
+  if (!product) return 0;
+
+  const movement = db
+    .prepare(
+      `SELECT COALESCE(SUM(CASE WHEN dir = 'in' THEN qty ELSE -qty END), 0) AS net
+       FROM inventory_tx
+       WHERE product_id = ?
+         AND NOT (ref_type = 'sale' AND ref_id IS ?)`
+    )
+    .get(productId, excludeSaleId ?? -1) as { net: number };
+
+  return r2(product.opening_stock + movement.net);
+}
+
+export interface StockShortfall {
+  product_id: number;
+  name: string;
+  requested: number;
+  available: number;
+}
+
+/**
+ * Return any line items that would drive stock negative. `excludeSaleId` is the
+ * sale being edited (its current 'out' rows are not counted against availability).
+ */
+export function checkStockAvailability(
+  items: { product_id: number; qty: number }[],
+  excludeSaleId?: number | null
+): StockShortfall[] {
+  const db = getDb();
+  // Aggregate requested qty per product (a product can appear on multiple lines).
+  const wanted = new Map<number, number>();
+  for (const it of items) {
+    if (it.product_id > 0 && it.qty > 0) {
+      wanted.set(it.product_id, r2((wanted.get(it.product_id) ?? 0) + it.qty));
+    }
+  }
+
+  const shortfalls: StockShortfall[] = [];
+  const nameStmt = db.prepare("SELECT name FROM products WHERE id = ?");
+  for (const [product_id, requested] of wanted) {
+    const available = availableStock(product_id, excludeSaleId);
+    if (isShortStock(requested, available)) {
+      const row = nameStmt.get(product_id) as { name: string } | undefined;
+      shortfalls.push({
+        product_id,
+        name: row?.name ?? `#${product_id}`,
+        requested,
+        available,
+      });
+    }
+  }
+  return shortfalls;
 }
 
 export function getStockLedger(productId: number): LedgerDoc | null {

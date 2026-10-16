@@ -6,14 +6,15 @@ import { requireRole } from "./guard";
 import { err, ok, type FormState } from "@/lib/form-state";
 import { getDb } from "@/lib/db";
 import { n, opt, optN, s } from "@/lib/form-helpers";
+import { isValidGstin, isValidPhone } from "@/lib/validate";
 
 /* ── Customers ─────────────────────────────────────────── */
 
 const customerSchema = z.object({
   name: z.string().trim().min(2, "Name is required"),
   contact: z.string().trim().optional(),
-  phone: z.string().trim().optional(),
-  gstin: z.string().trim().optional(),
+  phone: z.string().trim().optional().refine(isValidPhone, "Enter a valid phone number"),
+  gstin: z.string().trim().optional().refine(isValidGstin, "Enter a valid 15-character GSTIN"),
   address: z.string().trim().optional(),
   state: z.string().trim().optional(),
   lat: z.number().nullable().optional(),
@@ -55,18 +56,22 @@ export async function saveCustomerAction(
   return ok(id == null ? "Customer added" : "Customer updated");
 }
 
-export async function deleteCustomerAction(formData: FormData): Promise<void> {
+export async function deleteCustomerAction(formData: FormData): Promise<FormState> {
   await requireRole("admin");
   const id = optN(formData, "id");
-  if (id == null) return;
+  if (id == null) return err("Customer not found");
   const db = getDb();
   const used = db.prepare("SELECT COUNT(*) AS c FROM sales WHERE customer_id = ?").get(id) as { c: number };
+  let message: string;
   if (used.c > 0) {
     db.prepare("UPDATE customers SET active = 0 WHERE id = ?").run(id);
+    message = "Customer has invoices — archived instead of deleted";
   } else {
     db.prepare("DELETE FROM customers WHERE id = ?").run(id);
+    message = "Customer deleted";
   }
   revalidatePath("/customers");
+  return ok(message);
 }
 
 /* ── Suppliers ─────────────────────────────────────────── */
@@ -75,8 +80,8 @@ const supplierSchema = z.object({
   name: z.string().trim().min(2, "Name is required"),
   category: z.enum(["raw_stone", "fuel", "spare", "electricity", "transport", "service", "other"]),
   contact: z.string().trim().optional(),
-  phone: z.string().trim().optional(),
-  gstin: z.string().trim().optional(),
+  phone: z.string().trim().optional().refine(isValidPhone, "Enter a valid phone number"),
+  gstin: z.string().trim().optional().refine(isValidGstin, "Enter a valid 15-character GSTIN"),
   address: z.string().trim().optional(),
 });
 
@@ -112,18 +117,22 @@ export async function saveSupplierAction(
   return ok(id == null ? "Supplier added" : "Supplier updated");
 }
 
-export async function deleteSupplierAction(formData: FormData): Promise<void> {
+export async function deleteSupplierAction(formData: FormData): Promise<FormState> {
   await requireRole("admin");
   const id = optN(formData, "id");
-  if (id == null) return;
+  if (id == null) return err("Supplier not found");
   const db = getDb();
   const used = db.prepare("SELECT COUNT(*) AS c FROM purchases WHERE supplier_id = ?").get(id) as { c: number };
+  let message: string;
   if (used.c > 0) {
     db.prepare("UPDATE suppliers SET active = 0 WHERE id = ?").run(id);
+    message = "Supplier has bills — archived instead of deleted";
   } else {
     db.prepare("DELETE FROM suppliers WHERE id = ?").run(id);
+    message = "Supplier deleted";
   }
   revalidatePath("/suppliers");
+  return ok(message);
 }
 
 /* ── Products ──────────────────────────────────────────── */
@@ -176,10 +185,10 @@ export async function saveProductAction(
   return ok(id == null ? "Product added" : "Product updated");
 }
 
-export async function deleteProductAction(formData: FormData): Promise<void> {
+export async function deleteProductAction(formData: FormData): Promise<FormState> {
   await requireRole("admin");
   const id = optN(formData, "id");
-  if (id == null) return;
+  if (id == null) return err("Product not found");
   const db = getDb();
   const used = db
     .prepare(
@@ -188,10 +197,14 @@ export async function deleteProductAction(formData: FormData): Promise<void> {
               (SELECT COUNT(*) FROM inventory_tx WHERE product_id = ?) AS c`
     )
     .get(id, id, id) as { c: number };
+  let message: string;
   if (used.c > 0) {
     db.prepare("UPDATE products SET active = 0 WHERE id = ?").run(id);
+    message = "Product is in use — archived instead of deleted";
   } else {
     db.prepare("DELETE FROM products WHERE id = ?").run(id);
+    message = "Product deleted";
   }
   revalidatePath("/inventory");
+  return ok(message);
 }

@@ -5,9 +5,8 @@ import { revalidatePath } from "next/cache";
 import { requireRole } from "./guard";
 import { err, ok, type FormState } from "@/lib/form-state";
 import { nAll, opt, optN, s } from "@/lib/form-helpers";
-import { deleteOrder, nextOrderNo, saveOrder } from "@/lib/repo/orders";
-import { deleteGrn, nextGrnNo, saveGrn } from "@/lib/repo/grns";
-import { getSettings, setSetting } from "@/lib/repo/masters";
+import { deleteOrder, saveOrder } from "@/lib/repo/orders";
+import { deleteGrn, saveGrn } from "@/lib/repo/grns";
 
 /* ── Customer orders (LPO) ─────────────────────────────── */
 
@@ -46,17 +45,8 @@ export async function saveOrderAction(
   if (items.length === 0) return err("Add at least one line with product and quantity");
 
   const id = optN(formData, "id");
-  let orderNo = opt(formData, "order_no");
-  if (id == null) {
-    const settings = getSettings();
-    const prefix = settings.order_prefix || "LPO";
-    const next = Number(settings.next_order_no || "1");
-    orderNo = orderNo || nextOrderNo(prefix, next);
-    saveOrder(null, { ...parsed.data, items }, orderNo);
-    setSetting("next_order_no", String(next + 1));
-  } else {
-    saveOrder(id, { ...parsed.data, items }, orderNo || "");
-  }
+  const explicitNo = id == null ? opt(formData, "order_no") : undefined;
+  const { order_no: orderNo } = saveOrder(id, { ...parsed.data, items }, explicitNo);
 
   revalidatePath("/sales");
   revalidatePath("/customers");
@@ -112,18 +102,11 @@ export async function saveGrnAction(
   if (items.length === 0) return err("Add at least one received item");
 
   const id = optN(formData, "id");
-  let grnNo = opt(formData, "grn_no");
+  const explicitNo = id == null ? opt(formData, "grn_no") : undefined;
+  let grnNo = explicitNo;
   try {
-    if (id == null) {
-      const settings = getSettings();
-      const prefix = settings.grn_prefix || "GRN";
-      const next = Number(settings.next_grn_no || "1");
-      grnNo = grnNo || nextGrnNo(prefix, next);
-      saveGrn(null, { ...parsed.data, items }, grnNo);
-      setSetting("next_grn_no", String(next + 1));
-    } else {
-      saveGrn(id, { ...parsed.data, items }, grnNo || "");
-    }
+    const result = saveGrn(id, { ...parsed.data, items }, explicitNo);
+    grnNo = result.grn_no;
   } catch (e) {
     return err(e instanceof Error ? e.message : "Could not save the goods receipt");
   }

@@ -231,7 +231,7 @@ export function InventoryView({
                           onConfirm={async () => {
                             const fd = new FormData();
                             fd.set("id", String(t.id));
-                            await deleteManualTxAction(fd);
+                            return deleteManualTxAction(fd);
                           }}
                         />
                       ) : null}

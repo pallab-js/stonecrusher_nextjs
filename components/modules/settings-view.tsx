@@ -249,7 +249,7 @@ export function SettingsView({
                         onConfirm={async () => {
                           const fd = new FormData();
                           fd.set("id", String(u.id));
-                          await deleteUserAction(fd);
+                          return deleteUserAction(fd);
                         }}
                       />
                     </div>

@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { fromPaise, toPaise } from "@/lib/money";
 
 export interface StatementLine {
   date: string;
@@ -83,9 +84,11 @@ function finalize(
   opening: number,
   rows: StatementLine[]
 ): StatementDoc {
-  const closing = r2(
-    opening + rows.reduce((sum, r) => sum + r.debit - r.credit, 0)
+  const closingPaise = rows.reduce(
+    (sum, r) => sum + toPaise(r.debit) - toPaise(r.credit),
+    toPaise(opening)
   );
+  const closing = fromPaise(closingPaise);
   return {
     party_id: party.id,
     party: party.name,

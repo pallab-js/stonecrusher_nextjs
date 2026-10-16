@@ -167,7 +167,7 @@ export function SuppliersTable({
                         onConfirm={async () => {
                           const fd = new FormData();
                           fd.set("id", String(r.id));
-                          await deleteSupplierAction(fd);
+                          return deleteSupplierAction(fd);
                         }}
                       />
                     </div>
