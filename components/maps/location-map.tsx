@@ -66,9 +66,18 @@ export function LocationMap({
               <g
                 key={p.id}
                 className="cursor-pointer"
+                role="button"
+                tabIndex={0}
+                aria-label={p.name}
                 onMouseEnter={() => setHover(p)}
                 onMouseLeave={() => setHover(null)}
                 onClick={() => setSelected((s) => (s?.id === p.id ? null : p))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelected((s) => (s?.id === p.id ? null : p));
+                  }
+                }}
               >
                 <circle
                   cx={p.x}
