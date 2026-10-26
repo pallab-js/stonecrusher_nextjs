@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Pin } from "lucide-react";
+import { ChevronLeft, ChevronRight, LogOut, Menu, Pin } from "lucide-react";
 
 const ROLE_BADGE: Record<string, string> = {
   admin: "Admin",
@@ -26,7 +26,7 @@ const ROLE_BADGE: Record<string, string> = {
 
 function Brand({ collapsed = false }: { collapsed?: boolean }) {
   return (
-    <Link href="/dashboard" className="flex items-center gap-2">
+    <Link href="/dashboard" className="flex items-center gap-2.5 px-2">
       <span className="flex size-9 items-center justify-center rounded-md bg-blurple shrink-0">
         <svg viewBox="0 0 24 24" fill="none" className="size-5" aria-hidden>
           <path
@@ -147,15 +147,20 @@ export function AppShell({
           (collapsed ? "w-16" : "w-64")
         }
       >
-        <div className={"flex h-16 items-center justify-between " + (collapsed ? "px-2" : "px-4")}>
+        <div className={"flex h-16 items-center " + (collapsed ? "justify-center px-2" : "px-5")}>
           <Brand collapsed={collapsed} />
+        </div>
+        <div className="flex flex-1 flex-col overflow-y-auto">
+          <NavList user={user} collapsed={collapsed} />
+        </div>
+        <div className="border-t border-hairline p-2">
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-surface hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blurple"
+            className="flex w-full items-center justify-center rounded-md p-2 text-muted-foreground transition hover:bg-surface hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blurple"
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+            {collapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
           </button>
         </div>
       </aside>
