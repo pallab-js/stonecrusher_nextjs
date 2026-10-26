@@ -163,11 +163,6 @@ export function AppShell({
             {collapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
           </button>
         </div>
-        {!collapsed && (
-          <div className="border-t border-hairline p-4 text-[11px] leading-relaxed text-muted-foreground">
-            Local-first · SQLite · offline
-          </div>
-        )}
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -184,9 +179,6 @@ export function AppShell({
                   <Brand />
                 </div>
                 <NavList user={user} onNavigate={() => setOpen(false)} />
-                <div className="border-t border-hairline p-4 text-[11px] leading-relaxed text-muted-foreground">
-                  Local-first · SQLite · offline
-                </div>
               </SheetContent>
             </Sheet>
           </div>
