@@ -268,7 +268,7 @@ export function PlantMap({
         </div>
       </div>
 
-      <aside className="hidden lg:flex flex-col gap-4 rounded-xl bg-surface p-5 ring-1 ring-white/10">
+      <aside className="hidden lg:flex flex-col gap-4 rounded-xl bg-surface p-5 ring-1 ring-white/10 lg:overflow-y-auto lg:max-h-[calc(100vh-4rem)]">
         <StageDetail active={active} stat={activeStat} summary={summary} stockpiles={stockpiles} />
       </aside>
 
