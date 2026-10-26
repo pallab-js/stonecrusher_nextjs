@@ -168,7 +168,7 @@ export function PlantMap({
   };
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[1fr_20rem]">
+    <div className="flex flex-col gap-5">
       <div className="rounded-xl bg-surface p-5 ring-1 ring-white/10">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -268,9 +268,9 @@ export function PlantMap({
         </div>
       </div>
 
-      <aside className="hidden lg:flex flex-col gap-4 rounded-xl bg-surface p-5 ring-1 ring-white/10 lg:overflow-y-auto lg:max-h-[calc(100vh-4rem)]">
+      <div className="rounded-xl bg-surface p-5 ring-1 ring-white/10">
         <StageDetail active={active} stat={activeStat} summary={summary} stockpiles={stockpiles} />
-      </aside>
+      </div>
 
       <Sheet open={isMobile && sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="bottom" className="p-4 lg:hidden">
