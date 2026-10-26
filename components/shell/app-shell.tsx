@@ -136,7 +136,7 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen w-full overflow-x-hidden">
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-hairline bg-canvas/80 backdrop-blur lg:flex">
+      <aside className="fixed top-0 left-0 hidden h-screen w-64 shrink-0 flex-col border-r border-hairline bg-canvas/80 backdrop-blur lg:flex">
         <div className="flex h-16 items-center px-5">
           <Brand />
         </div>
@@ -145,7 +145,7 @@ export function AppShell({
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col lg:ml-64">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-hairline bg-canvas/80 px-3 backdrop-blur sm:px-4 lg:px-6">
           <div className="flex items-center gap-3 lg:hidden">
             <Sheet open={open} onOpenChange={setOpen}>
