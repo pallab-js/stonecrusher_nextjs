@@ -135,7 +135,7 @@ export function AppShell({
     )?.label ?? "StoneOps";
 
   return (
-    <div className="flex min-h-screen w-full">
+    <div className="flex min-h-screen w-full overflow-x-hidden">
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-hairline bg-canvas/80 backdrop-blur lg:flex">
         <div className="flex h-16 items-center px-5">
           <Brand />
@@ -176,7 +176,7 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main className="flex-1 overflow-x-auto px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>
     </div>
   );
