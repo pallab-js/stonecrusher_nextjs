@@ -169,9 +169,6 @@ export function AppShell({
           <h1 className="display hidden text-lg text-white lg:block">{title}</h1>
 
           <div className="ml-auto flex items-center gap-2">
-            <span className="hidden items-center gap-1.5 rounded-pill bg-green/10 px-2.5 py-1 text-[11px] font-semibold text-green ring-1 ring-green/30 md:flex">
-              <span className="size-1.5 rounded-full bg-green" /> Offline ready
-            </span>
             <UserChip user={user} />
           </div>
         </header>
