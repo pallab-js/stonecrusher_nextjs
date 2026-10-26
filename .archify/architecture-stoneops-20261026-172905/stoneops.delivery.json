@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "4721e91c-647f-491c-be06-f8da7b97a3d6",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/pallabpc/Desktop/stonecrusher_nextjs/.archify/architecture-stoneops-20261026-172905/stoneops-architecture.json",
+  "output": "/Users/pallabpc/Desktop/stonecrusher_nextjs/.archify/architecture-stoneops-20261026-172905/stoneops.html",
+  "specification": {
+    "sha256": "847186deb0fbcf7edf71b7e6998780b847f158a3cdf1a9a01bf2aff7f5e4d4d3",
+    "bytes": 4859
+  },
+  "artifact": {
+    "sha256": "93251568203f617336baaeccec3dc7321402cdfd8c92a2688a766ca6dfc5ac1f",
+    "bytes": 766560
+  }
+}

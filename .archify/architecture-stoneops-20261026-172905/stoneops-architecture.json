@@ -1,0 +1,218 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "StoneOps — Stone Crusher Unit Operations",
+    "output": ".archify/architecture-stoneops-20261026-172905/stoneops.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "users",
+      "type": "external",
+      "label": "Users",
+      "sublabel": "Browser (Local)",
+      "pos": [40, 300],
+      "size": [120, 60]
+    },
+    {
+      "id": "nextjs",
+      "type": "frontend",
+      "label": "Next.js 16",
+      "sublabel": "App Router + Turbopack",
+      "pos": [250, 300],
+      "size": [140, 64],
+      "tag": "React 19"
+    },
+    {
+      "id": "auth",
+      "type": "security",
+      "label": "Auth",
+      "sublabel": "jose JWT + scrypt",
+      "pos": [250, 160],
+      "size": [140, 64],
+      "tag": "Session Cookie"
+    },
+    {
+      "id": "proxy",
+      "type": "backend",
+      "label": "Proxy (middleware)",
+      "sublabel": "proxy.ts",
+      "pos": [450, 220],
+      "size": [140, 64]
+    },
+    {
+      "id": "actions",
+      "type": "backend",
+      "label": "Server Actions",
+      "sublabel": "actions/*",
+      "pos": [450, 380],
+      "size": [140, 64],
+      "tag": "Validated"
+    },
+    {
+      "id": "components",
+      "type": "frontend",
+      "label": "UI Components",
+      "sublabel": "components/* (shadcn/ui)",
+      "pos": [250, 440],
+      "size": [140, 64],
+      "tag": "Tailwind 4"
+    },
+    {
+      "id": "repo",
+      "type": "backend",
+      "label": "Repo Layer",
+      "sublabel": "lib/repo/*",
+      "pos": [620, 380],
+      "size": [140, 64],
+      "tag": "Query Layer"
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "SQLite",
+      "sublabel": "better-sqlite3",
+      "pos": [920, 380],
+      "size": [140, 64],
+      "tag": "WAL, local file"
+    },
+    {
+      "id": "lib",
+      "type": "backend",
+      "label": "Core Lib",
+      "sublabel": "lib/schema/db/auth/validate/money",
+      "pos": [660, 240],
+      "size": [140, 64]
+    },
+    {
+      "id": "maps",
+      "type": "frontend",
+      "label": "Maps & Charts",
+      "sublabel": "d3-geo + Recharts",
+      "pos": [250, 560],
+      "size": [140, 64],
+      "tag": "Offline SVG"
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Local Machine (Offline)",
+      "wraps": ["nextjs", "auth", "proxy", "actions", "components", "repo", "db", "lib", "maps"]
+    },
+    {
+      "kind": "security-group",
+      "label": "Auth Boundary",
+      "wraps": ["auth", "proxy"]
+    }
+  ],
+  "connections": [
+    {
+      "id": "users-to-nextjs",
+      "from": "users",
+      "to": "nextjs",
+      "label": "HTTP",
+      "variant": "emphasis"
+    },
+    {
+      "id": "nextjs-to-auth",
+      "from": "nextjs",
+      "to": "auth",
+      "label": "session",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelDy": -30
+    },
+    {
+      "id": "nextjs-to-proxy",
+      "from": "nextjs",
+      "to": "proxy",
+      "label": "route guard",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "nextjs-to-components",
+      "from": "nextjs",
+      "to": "components",
+      "label": "renders",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 30
+    },
+    {
+      "id": "components-to-actions",
+      "from": "components",
+      "to": "actions",
+      "label": "useActionState",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "actions-to-repo",
+      "from": "actions",
+      "to": "repo",
+      "label": "calls"
+    },
+    {
+      "id": "repo-to-db",
+      "from": "repo",
+      "to": "db",
+      "label": "SQL (better-sqlite3)"
+    },
+    {
+      "id": "lib-to-repo",
+      "from": "lib",
+      "to": "repo",
+      "label": "schema/validate/money",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "auth-to-lib",
+      "from": "auth",
+      "to": "lib",
+      "label": "utils"
+    },
+    {
+      "id": "components-to-maps",
+      "from": "components",
+      "to": "maps",
+      "label": "charts/maps",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Frontend",
+      "items": [
+        "Next.js 16 App Router with React 19",
+        "shadcn/ui components with Tailwind CSS 4",
+        "Offline SVG maps and Recharts"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Backend/Data",
+      "items": [
+        "Server Actions for mutations",
+        "Repository layer over SQLite",
+        "Integer-paise money, atomic numbering"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Security/Local",
+      "items": [
+        "JWT session cookie + scrypt PIN hashing",
+        "Role-based route gating",
+        "Fully local-first, no network calls"
+      ]
+    }
+  ]
+}

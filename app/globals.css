@@ -75,7 +75,7 @@
   --secondary: #23272a;
   --secondary-foreground: #ffffff;
   --muted: #232a58;
-  --muted-foreground: #9aa0c7;
+  --muted-foreground: #b4b9d6;
   --accent: #2a3070;
   --accent-foreground: #ffffff;
   --destructive: #ed4245;
@@ -180,6 +180,15 @@
     radial-gradient(30rem 30rem at 22% 30%, rgb(88 101 242 / 0.14), transparent 60%),
     radial-gradient(26rem 26rem at 82% 62%, rgb(236 72 189 / 0.1), transparent 60%);
   animation: drift 22s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mesh-bg::after {
+    animation: none;
+  }
+  html {
+    scroll-behavior: auto;
+  }
 }
 
 @keyframes flow-dot {

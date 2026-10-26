@@ -49,7 +49,7 @@ export function LoginForm({ users }: { users: UserLite[] }) {
               key={u.id}
               type="button"
               onClick={() => setSelected(u)}
-              className="flex items-center gap-3 rounded-md bg-canvas/70 px-4 py-3 text-left ring-1 ring-white/5 transition hover:bg-accent hover:ring-blurple/60"
+              className="flex items-center gap-3 rounded-md bg-canvas/70 px-4 py-3 text-left ring-1 ring-white/5 transition hover:bg-accent hover:ring-blurple/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blurple focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
             >
               <span className="flex size-10 items-center justify-center rounded-full bg-blurple text-sm font-bold text-white">
                 {u.name
@@ -90,7 +90,7 @@ export function LoginForm({ users }: { users: UserLite[] }) {
           setSelected(null);
           setPin("");
         }}
-        className="mb-4 text-xs font-medium text-cyan transition hover:underline"
+        className="mb-4 text-xs font-medium text-cyan transition hover:underline focus-visible:outline-none focus-visible:underline focus-visible:ring-2 focus-visible:ring-blurple focus-visible:ring-offset-2 focus-visible:ring-offset-canvas rounded-sm"
       >
         ← Change user
       </button>
@@ -153,13 +153,15 @@ export function LoginForm({ users }: { users: UserLite[] }) {
 function KeyBtn({
   children,
   onClick,
+  disabled,
   ...rest
 }: React.ComponentProps<"button"> & { onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex h-13 items-center justify-center rounded-md bg-canvas/80 py-3 text-lg font-semibold text-white ring-1 ring-white/10 transition hover:bg-accent hover:ring-blurple/60 active:translate-y-px"
+      disabled={disabled}
+      className="flex h-12 items-center justify-center rounded-md bg-canvas/80 py-3 text-lg font-semibold text-white ring-1 ring-white/10 transition hover:bg-accent hover:ring-blurple/60 active:translate-y-px disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blurple focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
       {...rest}
     >
       {children}
