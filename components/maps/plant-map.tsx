@@ -97,7 +97,7 @@ function StageDetail({
   stockpiles: Stockpile[];
 }) {
   return (
-    <>
+    <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2.5">
         <span className="flex size-10 items-center justify-center rounded-md bg-blurple text-white">
           <active.icon className="size-5" />
@@ -110,21 +110,23 @@ function StageDetail({
         </div>
       </div>
       <p className="text-sm leading-relaxed text-muted-foreground">{active.detail}</p>
-      <div className="mt-auto rounded-lg bg-canvas/70 p-3 ring-1 ring-white/5">
-        <p className="text-[11px] tracking-widest text-muted-foreground uppercase">Today</p>
-        <p className="stat-number mt-1 text-2xl text-white">{stat}</p>
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          downtime {summary.down_hours.toFixed(1)} h · raw consumed {tonnes(summary.raw)}
-        </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-lg bg-canvas/70 p-3 ring-1 ring-white/5">
+          <p className="text-[11px] tracking-widest text-muted-foreground uppercase">Today</p>
+          <p className="stat-number mt-1 text-2xl text-white">{stat}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            downtime {summary.down_hours.toFixed(1)} h · raw consumed {tonnes(summary.raw)}
+          </p>
+        </div>
+        <div className="rounded-lg bg-canvas/70 p-3 ring-1 ring-white/5">
+          <p className="text-[11px] tracking-widest text-muted-foreground uppercase">Output today</p>
+          <p className="stat-number mt-1 text-2xl text-green">{tonnes(summary.output)}</p>
+          <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Boxes className="size-3" /> across {stockpiles.length} graded products
+          </p>
+        </div>
       </div>
-      <div className="rounded-lg bg-canvas/70 p-3 ring-1 ring-white/5">
-        <p className="text-[11px] tracking-widest text-muted-foreground uppercase">Output today</p>
-        <p className="stat-number mt-1 text-2xl text-green">{tonnes(summary.output)}</p>
-        <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
-          <Boxes className="size-3" /> across {stockpiles.length} graded products
-        </p>
-      </div>
-    </>
+    </div>
   );
 }
 

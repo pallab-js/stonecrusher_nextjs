@@ -130,9 +130,9 @@ export function ReportsView({
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {cards.map((c) => (
-          <div key={c.label} className="rounded-xl bg-surface p-4 ring-1 ring-white/10">
-            <p className="text-[11px] font-bold tracking-widest text-muted-foreground uppercase">{c.label}</p>
-            <p className={cn("stat-number mt-2 text-2xl", c.tone)}>{c.value}</p>
+          <div key={c.label} className="rounded-xl bg-surface p-4 ring-1 ring-white/10 min-w-0">
+            <p className="text-[11px] font-bold tracking-widest text-muted-foreground uppercase truncate">{c.label}</p>
+            <p className={cn("stat-number mt-2 text-xl xl:text-2xl break-all", c.tone)}>{c.value}</p>
           </div>
         ))}
       </div>
