@@ -48,24 +48,41 @@ const CUSTOMERS: [string, string, string, string, number, number][] = [
   ["Paramount Estate", "V. Gupta", "9854011234", "Siliguri, West Bengal", 26.7271, 88.3953],
   ["New Line Contractors", "R. Singh", "9978022345", "Patna, Bihar", 25.5941, 85.1376],
   ["Brahmaputra Readymix", "K. Sarma", "9401033456", "Jorhat, Assam", 26.7509, 94.2164],
-  ["Maji Infra Builders", "J. Pecho", "9612044567", "Itanagar, Arunachal", 27.0844, 93.6053],
+  ["Maji Infra Builders", "J. Pecho", "9612044567", "Itanagar, Arunachal Pradesh", 27.0844, 93.6053],
   ["Elite Constructions", "S. Mehta", "9864055678", "Kolkata, West Bengal", 22.5726, 88.3639],
+  ["Meghalaya Hills RMC", "B. Lyngdoh", "9436112233", "Shillong, Meghalaya", 25.5788, 91.8933],
+  ["Ziro Valley Contractors", "T. Tage", "9862045566", "Ziro, Arunachal Pradesh", 27.5435, 93.8197],
+  ["Nagaland Build Tech", "V. Keyho", "8794433221", "Dimapur, Nagaland", 25.9042, 93.7266],
+  ["Mizoram Infra Pvt Ltd", "L. Chhangte", "9436144556", "Aizawl, Mizoram", 23.7271, 92.7176],
+  ["Manipur Granite & Road Works", "R. Singh", "8974423344", "Imphal, Manipur", 24.817, 93.9368],
+  ["Golden Triangle Constructions", "M. Aung", "9594477889", "Mandalay, Myanmar", 21.9588, 96.0891],
+  ["Yangon Builders Co.", "U. Kyaw", "9594499223", "Yangon, Myanmar", 16.8409, 96.1735],
+  ["Mandalay RMC & Supplies", "D. Win", "9594466778", "Mandalay, Myanmar", 21.9588, 96.0891],
+  ["Sagaing Infrastructure", "N. Hlaing", "9594488334", "Sagaing, Myanmar", 21.8787, 95.9797],
+  ["Myawaddy Trade & Construction", "T. Soe", "9594455667", "Myawaddy, Kayin State, Myanmar", 16.689, 98.5088],
 ];
 
 const SUPPLIERS: [string, string, string][] = [
   ["Lalung Quarry Co.", "raw_stone", "Rongia, Assam"],
   ["Khanij Stone Crushers", "raw_stone", "Morigaon, Assam"],
+  ["Umroi Hills Quarry", "raw_stone", "Ri-Bhoi, Meghalaya"],
+  ["Dima Hasao Stone Quarry", "raw_stone", "Haflong, Assam"],
+  ["Changlang Aggregates", "raw_stone", "Changlang, Arunachal Pradesh"],
+  ["Sagaing Stone Supply Co.", "raw_stone", "Mandalay Region, Myanmar"],
   ["HP Petrol Pump Dealer", "fuel", "Guwahati, Assam"],
   ["Indian Oil Distributor", "fuel", "Amingaon, Assam"],
   ["NE Bearing & Spares", "spare", "Guwahati, Assam"],
   ["Assam Power Distribution", "electricity", "Guwahati, Assam"],
+  ["Meghalaya Power Dept.", "electricity", "Shillong, Meghalaya"],
   ["Own Fleet / Drivers", "transport", "Guwahati, Assam"],
   ["Krishna Fabricators", "service", "Narengi, Assam"],
   ["Ambica Enterprises", "spare", "Kolkata, WB"],
   ["Patel Transport", "transport", "Siliguri, WB"],
+  ["Himalayan Crane Services", "service", "Itanagar, Arunachal Pradesh"],
+  ["Myanmar Cross-Border Logistics", "transport", "Tamu, Myanmar"],
 ];
 
-const VEHICLE_PREFIXES = ["AS01", "AS02", "AS03", "AS24", "WB24"];
+const VEHICLE_PREFIXES = ["AS01", "AS02", "AS03", "AS24", "ML05", "AR01", "NL01", "MZ01", "MN01", "WB24", "MM-01"];
 
 export interface SeedResult {
   products: number;
@@ -142,9 +159,9 @@ export function loadDemoData(): SeedResult {
     const aggregateIds = aggregates.map((p) => ({ id: productId.get(p.code)!, rate: p.rate, code: p.code }));
     const MIX_WEIGHTS = [0.1, 0.2, 0.35, 0.15, 0.12, 0.08];
 
-    /* date range: last 10 months */
+    /* date range: last 12 months up to recent dates */
     const end = new Date();
-    const start = new Date(end.getFullYear(), end.getMonth() - 10, 1);
+    const start = new Date(end.getFullYear(), end.getMonth() - 12, 1);
 
     let productionCount = 0;
     let salesCount = 0;
