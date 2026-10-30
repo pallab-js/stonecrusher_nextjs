@@ -96,14 +96,14 @@ export function ReportsView({
   return (
     <div className="grid gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1 rounded-md bg-surface p-1 ring-1 ring-white/10">
+        <div className="flex max-w-full gap-1 overflow-x-auto rounded-md bg-surface p-1 ring-1 ring-white/10">
           {PERIODS.map((p) => (
             <button
               key={p.value}
               type="button"
               onClick={() => router.push(`/reports?period=${p.value}`)}
               className={cn(
-                "rounded px-3 py-1.5 text-xs font-semibold transition",
+                "shrink-0 rounded px-3 py-1.5 text-xs font-semibold transition",
                 period === p.value ? "bg-blurple text-white" : "text-muted-foreground hover:text-white"
               )}
             >
